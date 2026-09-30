@@ -80,9 +80,35 @@ def patch_pixman(path):
     print(f"Patched {path}: disabled unsupported SIMD paths for Windows ARM64")
 
 
+def patch_libp11(path):
+    s, line_ending = _read_normalized(path)
+
+    if "/MACHINE:ARM64" in s:
+        print(f"SKIP {path}: Windows ARM64 linker machine patch already present")
+        return
+
+    # libp11's make.rules.mak links with /MACHINE:X86 unless BUILD_FOR=WIN64.
+    # An nmake command-line macro overrides the makefile's MACHINE definition.
+    needle = (
+        '        if CraftCore.compiler.architecture == CraftCompiler.Architecture.x86_64:\n'
+        '             self.subinfo.options.make.args += f" BUILD_FOR=WIN64"\n'
+    )
+    replacement = needle + (
+        '        elif CraftCore.compiler.architecture == CraftCompiler.Architecture.arm64:\n'
+        '             self.subinfo.options.make.args += " MACHINE=/MACHINE:ARM64"\n'
+    )
+    if needle not in s:
+        raise RuntimeError("libp11 nmake architecture block changed upstream")
+    s = s.replace(needle, replacement, 1)
+
+    _write_preserving_line_endings(path, s, line_ending)
+    print(f"Patched {path}: link libp11 for Windows ARM64")
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: patch-kde-blueprints-arm64.py <libjpeg-turbo.py> <pixman.py>")
+    if len(sys.argv) != 4:
+        print("Usage: patch-kde-blueprints-arm64.py <libjpeg-turbo.py> <pixman.py> <libp11.py>")
         sys.exit(2)
     patch_libjpeg(sys.argv[1])
     patch_pixman(sys.argv[2])
+    patch_libp11(sys.argv[3])
