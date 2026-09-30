@@ -35,6 +35,18 @@ PIXMAN = (
     "            self.subinfo.options.configure.args += [\"-Da64-neon=disabled\"]\n"
 )
 
+LIBP11 = (
+    "class PackageMake(MakeFilePackageBase):\n"
+    "    def __init__(self, **kwargs):\n"
+    "        super().__init__(**kwargs)\n"
+    "        self.subinfo.options.make.args += f\"/f Makefile.mak OPENSSL_DIR=\" + str(CraftCore.standardDirs.craftRoot())\n"
+    "        if CraftCore.compiler.architecture == CraftCompiler.Architecture.x86_64:\n"
+    "             self.subinfo.options.make.args += f\" BUILD_FOR=WIN64\"\n"
+    "\n"
+    "    def install(self):\n"
+    "        pass\n"
+)
+
 
 class KdeBlueprintPatchTests(unittest.TestCase):
     @staticmethod
@@ -74,6 +86,26 @@ class KdeBlueprintPatchTests(unittest.TestCase):
             module.patch_pixman(pixman)
             self.assertNotIn(b"\r\n", libjpeg.read_bytes())
             self.assertNotIn(b"\r\n", pixman.read_bytes())
+
+    def test_libp11_links_arm64_instead_of_x86(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "libp11.py"
+            self._write(path, LIBP11, "\r\n")
+            module.patch_libp11(path)
+            module.patch_libp11(path)
+            text = path.read_bytes().decode("utf-8")
+            self.assertEqual(text.count("MACHINE=/MACHINE:ARM64"), 1)
+            self.assertIn("elif CraftCore.compiler.architecture == CraftCompiler.Architecture.arm64:", text)
+            self.assertIn("BUILD_FOR=WIN64", text)
+            self.assertNotIn("\n", text.replace("\r\n", ""))
+            compile(text.replace("\r\n", "\n"), str(path), "exec")
+
+    def test_libp11_unexpected_upstream_layout_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "libp11.py"
+            self._write(path, "class PackageMake:\n    pass\n", "\n")
+            with self.assertRaises(RuntimeError):
+                module.patch_libp11(path)
 
 
 if __name__ == "__main__":
