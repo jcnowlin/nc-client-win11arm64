@@ -42,6 +42,12 @@ class Arm64WorkflowTests(unittest.TestCase):
         ):
             self.assertIn(package, text)
 
+    def test_blueprint_fixes_reach_restored_workspaces(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+        reuse = text.index('Write-Host "Reusing restored ARM64 Craft dependency workspace."')
+        patch = text.index("patch-kde-blueprints-arm64.py")
+        self.assertLess(reuse, patch)
+        self.assertIn('"$nextcloud/libs/libp11/libp11.py"', text)
 
 if __name__ == "__main__":
     unittest.main()
