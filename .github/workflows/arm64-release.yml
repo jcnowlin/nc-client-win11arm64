@@ -121,8 +121,14 @@ jobs:
             ${{ github.workspace }}\craftmaster-arm64.ini
             ${{ github.workspace }}\${{ env.CRAFT_TARGET }}
           key: arm64-deps-${{ env.ARM64_CACHE_FINGERPRINT }}-complete
+          # Exact-sha checkpoints first. On arm64/stable-* only, fall back to the
+          # newest checkpoint from an earlier commit of the same branch so a
+          # tooling fix for a late checkpoint does not force a full rebuild.
+          # Release branches (arm64/v*) never use the fallback and always build
+          # every dependency from source with their own tooling.
           restore-keys: |
             arm64-deps-${{ env.ARM64_CACHE_FINGERPRINT }}-phase-
+            ${{ startsWith(github.ref, 'refs/heads/arm64/stable-') && 'arm64-deps-' || format('arm64-deps-{0}-phase-', env.ARM64_CACHE_FINGERPRINT) }}
       - name: Bootstrap Craft and prepare ARM64 blueprints
         run: |
           if (-not (Test-Path "$env:CRAFT_MASTER_LOCATION/CraftMaster.py")) {
@@ -143,8 +149,6 @@ jobs:
             $clone = Join-Path $env:GITHUB_WORKSPACE 'craft-clone'
             python '.github/scripts/patch-nsis-and-blueprint.py' $clone "$nextcloud/nextcloud-client/nextcloud-client.py"
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            python '.github/scripts/patch-kde-blueprints-arm64.py' "$kde/libs/libjpeg-turbo/libjpeg-turbo.py" "$kde/libs/pixman/pixman.py"
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             foreach ($name in @('craft-blueprints-kde', 'craft-blueprints-nextcloud')) {
               $directory = Join-Path $locations $name
               git -C $directory config user.name 'ARM64 Build Bot'
@@ -155,6 +159,18 @@ jobs:
             }
           } else {
             Write-Host "Reusing restored ARM64 Craft dependency workspace."
+          }
+          # Blueprint fixes are idempotent and also applied to restored
+          # workspaces, so a fix for a later checkpoint reaches blueprints
+          # restored from an earlier checkpoint.
+          python '.github/scripts/patch-kde-blueprints-arm64.py' "$kde/libs/libjpeg-turbo/libjpeg-turbo.py" "$kde/libs/pixman/pixman.py" "$nextcloud/libs/libp11/libp11.py"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($name in @('craft-blueprints-kde', 'craft-blueprints-nextcloud')) {
+            $directory = Join-Path $locations $name
+            if (git -C $directory status --porcelain) {
+              git -C $directory -c user.name='ARM64 Build Bot' -c user.email='actions@users.noreply.github.com' commit -qam 'build: apply Windows ARM64 blueprint fixes'
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            }
           }
           foreach ($name in @('craft-blueprints-kde', 'craft-blueprints-nextcloud')) {
             $directory = Join-Path $locations $name
