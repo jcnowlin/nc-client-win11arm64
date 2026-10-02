@@ -26,7 +26,12 @@ jobs:
       CRAFT_MASTER_LOCATION: ${{ github.workspace }}\CraftMaster
       CRAFT_MASTER_CONFIG: ${{ github.workspace }}\craftmaster-arm64.ini
       PIP_USE_DEPRECATED: legacy-certs
-      ARM64_CACHE_FINGERPRINT: ${{ github.sha }}
+      # NOTE: ARM64_CACHE_FINGERPRINT is NOT set here on purpose. It is computed
+      # per-run by the "Compute ARM64 cache fingerprint" step below (content hash
+      # of the .github overlay) and exported via $GITHUB_ENV, so dependency
+      # checkpoints resume across overlay refreshes instead of cold-starting on
+      # every new commit. All cache keys below keep using
+      # ${{ env.ARM64_CACHE_FINGERPRINT }} unchanged.
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -38,6 +43,15 @@ jobs:
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
+      - name: Compute ARM64 cache fingerprint
+        # Content hash of the .github overlay (tooling + markers). Stable across
+        # overlay refreshes that change nothing, so Craft dependency checkpoints
+        # restore instead of rebuilding from scratch on every new commit. Changes
+        # exactly when the tooling or the pinned inputs (markers) change.
+        run: |
+          $fp = (git rev-parse "HEAD:.github").Substring(0, 12)
+          "ARM64_CACHE_FINGERPRINT=$fp" >> $env:GITHUB_ENV
+          Write-Host "ARM64 cache fingerprint: $fp"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m compileall -q .github/scripts
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
