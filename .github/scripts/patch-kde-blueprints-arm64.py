@@ -105,10 +105,80 @@ def patch_libp11(path):
     print(f"Patched {path}: link libp11 for Windows ARM64")
 
 
+
+
+def bootstrap_zlib():
+    """Pre-build zlib.lib so Craft's Python build can link it.
+
+    Craft resolves libs/python before libs/zlib, but CPython's Windows build
+    links <craft-root>/lib/zlib.lib (see KDE/craft blueprints/libs/python).
+    Building zlib 1.3.1 here with CMake breaks the cycle; Craft rebuilds and
+    reinstalls it properly afterwards via libs/zlib.
+    """
+    import os
+    import shutil
+    import subprocess
+    import tarfile
+    import urllib.request
+
+    github_workspace = os.environ.get("GITHUB_WORKSPACE")
+    craft_target = os.environ.get("CRAFT_TARGET")
+    if not github_workspace or not craft_target:
+        print("SKIP zlib bootstrap: GITHUB_WORKSPACE or CRAFT_TARGET not set")
+        return
+
+    craft_root = os.path.join(github_workspace, craft_target)
+    zlib_lib = os.path.join(craft_root, "lib", "zlib.lib")
+    if os.path.exists(zlib_lib):
+        print(f"SKIP zlib bootstrap: {zlib_lib} already exists")
+        return
+
+    # Need CMake from the runner (Craft's own cmake is built later).
+    if shutil.which("cmake") is None:
+        raise RuntimeError("zlib bootstrap requires cmake on PATH")
+
+    zlib_ver = "1.3.1"
+    runner_temp = os.environ.get("RUNNER_TEMP", "/tmp")
+    tgz_path = os.path.join(runner_temp, f"zlib-{zlib_ver}.tar.gz")
+    src_dir = os.path.join(runner_temp, "zlib-bootstrap-src")
+    build_dir = os.path.join(runner_temp, "zlib-bootstrap-build")
+
+    print(f"Bootstrapping zlib {zlib_ver} (breaks python->zlib build cycle)...")
+    url = f"https://github.com/madler/zlib/releases/download/v{zlib_ver}/zlib-{zlib_ver}.tar.gz"
+    urllib.request.urlretrieve(url, tgz_path)
+
+    shutil.rmtree(src_dir, ignore_errors=True)
+    os.makedirs(src_dir, exist_ok=True)
+    with tarfile.open(tgz_path, "r:gz") as tf:
+        tf.extractall(src_dir)
+    extracted = os.path.join(src_dir, f"zlib-{zlib_ver}")
+    if not os.path.isdir(extracted):
+        raise RuntimeError(f"zlib source not found at {extracted}")
+
+    shutil.rmtree(build_dir, ignore_errors=True)
+    os.makedirs(build_dir, exist_ok=True)
+    subprocess.run(
+        [
+            "cmake", "-S", extracted, "-B", build_dir,
+            "-G", "Visual Studio 18 2026", "-A", "ARM64",
+            f"-DCMAKE_INSTALL_PREFIX={craft_root}",
+            "-DBUILD_SHARED_LIBS=ON",
+        ],
+        check=True,
+    )
+    subprocess.run(["cmake", "--build", build_dir, "--config", "Release"], check=True)
+    subprocess.run(["cmake", "--install", build_dir, "--config", "Release"], check=True)
+
+    if not os.path.exists(zlib_lib):
+        raise RuntimeError(f"zlib bootstrap failed: {zlib_lib} not created")
+    print("zlib bootstrap complete.")
+
+
 if __name__ == "__main__":
     if len(sys.argv) != 4:
         print("Usage: patch-kde-blueprints-arm64.py <libjpeg-turbo.py> <pixman.py> <libp11.py>")
         sys.exit(2)
+    bootstrap_zlib()
     patch_libjpeg(sys.argv[1])
     patch_pixman(sys.argv[2])
     patch_libp11(sys.argv[3])
