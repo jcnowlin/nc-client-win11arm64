@@ -12,14 +12,21 @@ CACHE_SHA = "55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
 class Arm64WorkflowTests(unittest.TestCase):
     def test_pip_legacy_certs_is_inherited_by_all_craft_subprocesses(self):
         text = WORKFLOW.read_text(encoding="utf-8")
-        job = re.search(r"(?ms)^  build-release:\n(?P<body>.*?)(?=^  \S|\Z)", text)
-        self.assertIsNotNone(job)
-        env = re.search(r"(?ms)^    env:\n(?P<body>(?:^      .*\n)+)", job.group("body"))
-        self.assertIsNotNone(env)
-        self.assertRegex(
-            env.group("body"),
-            r"(?m)^      PIP_USE_DEPRECATED:\s*legacy-certs\s*$",
-        )
+        # Split workflow has multiple jobs (checkpoint-01..05, dependency-complete,
+        # build); every job must set PIP_USE_DEPRECATED for Craft subprocesses.
+        jobs = re.findall(r"(?ms)^  ([a-z0-9-]+):\n(?P<body>.*?)(?=^  \S|\Z)", text)
+        self.assertGreater(len(jobs), 0, "No jobs found in workflow")
+        for job_name, body in jobs:
+            if job_name in ("checkpoint-01", "checkpoint-02", "checkpoint-03",
+                            "checkpoint-04", "checkpoint-05", "dependency-complete",
+                            "build", "build-release"):
+                env = re.search(r"(?ms)^    env:\n(?P<envbody>(?:^      .*\n)+)", body)
+                self.assertIsNotNone(env, f"Job {job_name} has no env block")
+                self.assertRegex(
+                    env.group("envbody"),
+                    r"(?m)^      PIP_USE_DEPRECATED:\s*legacy-certs\s*$",
+                    f"Job {job_name} missing PIP_USE_DEPRECATED",
+                )
 
     def test_dependency_build_is_resumable_across_six_hour_runner_windows(self):
         text = WORKFLOW.read_text(encoding="utf-8")
