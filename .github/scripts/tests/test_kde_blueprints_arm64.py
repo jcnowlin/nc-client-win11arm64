@@ -94,8 +94,13 @@ class KdeBlueprintPatchTests(unittest.TestCase):
             module.patch_libp11(path)
             module.patch_libp11(path)
             text = path.read_bytes().decode("utf-8")
-            self.assertEqual(text.count("MACHINE=/MACHINE:ARM64"), 1)
+            # BUILD_FOR=ARM64 passed to nmake (command-line MACHINE= does not
+            # override make.rules.mak's !IF/!ELSE assignment)
+            self.assertEqual(text.count('BUILD_FOR=ARM64'), 1)  # make arg
+            self.assertIn('"$(BUILD_FOR)" == "ARM64"', text)  # make.rules.mak patch
             self.assertIn("elif CraftCore.compiler.architecture == CraftCompiler.Architecture.arm64:", text)
+            self.assertIn("def unpack(self):", text)
+            self.assertIn("/MACHINE:ARM64", text)
             self.assertIn("BUILD_FOR=WIN64", text)
             self.assertNotIn("\n", text.replace("\r\n", ""))
             compile(text.replace("\r\n", "\n"), str(path), "exec")
