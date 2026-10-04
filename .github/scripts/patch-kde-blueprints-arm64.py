@@ -83,23 +83,54 @@ def patch_pixman(path):
 def patch_libp11(path):
     s, line_ending = _read_normalized(path)
 
-    if "/MACHINE:ARM64" in s:
-        print(f"SKIP {path}: Windows ARM64 linker machine patch already present")
+    if "BUILD_FOR=ARM64" in s:
+        print(f"SKIP {path}: Windows ARM64 libp11 patch already present")
         return
 
     # libp11's make.rules.mak links with /MACHINE:X86 unless BUILD_FOR=WIN64.
-    # An nmake command-line macro overrides the makefile's MACHINE definition.
+    # A command-line MACHINE=... does NOT override the makefile's !IF/!ELSE
+    # assignment, so we must patch make.rules.mak itself after unpacking.
+    # Step 1: pass BUILD_FOR=ARM64 on ARM64 (instead of the ineffective
+    # command-line MACHINE override).
     needle = (
         '        if CraftCore.compiler.architecture == CraftCompiler.Architecture.x86_64:\n'
         '             self.subinfo.options.make.args += f" BUILD_FOR=WIN64"\n'
     )
     replacement = needle + (
         '        elif CraftCore.compiler.architecture == CraftCompiler.Architecture.arm64:\n'
-        '             self.subinfo.options.make.args += " MACHINE=/MACHINE:ARM64"\n'
+        '             self.subinfo.options.make.args += " BUILD_FOR=ARM64"\n'
     )
     if needle not in s:
         raise RuntimeError("libp11 nmake architecture block changed upstream")
     s = s.replace(needle, replacement, 1)
+
+    # Step 2: add an unpack() override that teaches make.rules.mak about ARM64.
+    # Insert after the __init__ method of PackageMake (before "    def install").
+    unpack_code = (
+        '        self.subinfo.options.make.args += " BUILD_FOR=ARM64"\n'
+        '\n'
+        '    def unpack(self):\n'
+        '        if not super().unpack():\n'
+        '            return False\n'
+        '        # libp11\'s make.rules.mak predates ARM64: it sets /MACHINE:X86\n'
+        '        # for anything that is not BUILD_FOR=WIN64. Add an ARM64 branch.\n'
+        '        make_rules = self.sourceDir() / "make.rules.mak"\n'
+        '        if make_rules.is_file():\n'
+        '            text = make_rules.read_text(encoding="utf-8")\n'
+        '            old = \'!IF "$(BUILD_FOR)" == "WIN64"\\nMACHINE = /MACHINE:X64\'\n'
+        '            new = old + \'\\n!ELSEIF "$(BUILD_FOR)" == "ARM64"\\nMACHINE = /MACHINE:ARM64\'\n'
+        '            if old in text and "/MACHINE:ARM64" not in text:\n'
+        '                make_rules.write_text(text.replace(old, new, 1), encoding="utf-8")\n'
+        '        return True\n'
+    )
+    install_needle = '        self.subinfo.options.make.args += " BUILD_FOR=ARM64"\n\n    def install(self):'
+    if install_needle not in s:
+        raise RuntimeError("libp11 install() anchor not found for unpack injection")
+    s = s.replace(
+        install_needle,
+        unpack_code + '\n    def install(self):',
+        1,
+    )
 
     _write_preserving_line_endings(path, s, line_ending)
     print(f"Patched {path}: link libp11 for Windows ARM64")
