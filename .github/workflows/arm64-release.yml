@@ -1401,6 +1401,12 @@ jobs:
           if ($code -ne 0) { throw "Client compilation failed: $code" }
           & ctest --test-dir "$env:GITHUB_WORKSPACE/$env:CRAFT_TARGET/build/nextcloud-client/work/build" --output-on-failure --no-tests=error --timeout 300
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verbose re-run of flaky tests (on failure)
+        if: failure()
+        run: |
+          "$env:GITHUB_WORKSPACE/$env:CRAFT_TARGET/bin" >> $env:GITHUB_PATH
+          $env:PATH = "$env:GITHUB_WORKSPACE/$env:CRAFT_TARGET/bin;$env:PATH"
+          & ctest --test-dir "$env:GITHUB_WORKSPACE/$env:CRAFT_TARGET/build/nextcloud-client/work/build" -R "SystraySyncControlQtTest|DateFieldBackendTest" -V --timeout 300
       - name: Validate native binaries and package installer
         run: |
           $root = Join-Path $env:GITHUB_WORKSPACE $env:CRAFT_TARGET
