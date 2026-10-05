@@ -19,6 +19,10 @@ on:
 permissions:
   contents: write
   actions: write
+  # Canary refresh pushes .github/workflows/arm64-release.yml (overlaid from
+  # arm64-tooling) onto the canary branch. Without this, the push is rejected
+  # with "refusing to allow a GitHub App to create or update workflow".
+  workflows: write
 
 concurrency:
   group: upstream-stable-arm64-canary
@@ -71,6 +75,8 @@ jobs:
 
           git checkout -B "$canary_branch" "$upstream_sha"
           git checkout origin/arm64-tooling -- .github/scripts .github/workflows/arm64-release.yml
+          # Don't sweep compiled Python cache into the canary commit.
+          find .github/scripts -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
           mkdir -p .github
           printf '%s\n' "$upstream_sha" > "$upstream_marker"
           printf '%s\n' "$tooling_sha" > "$tooling_marker"
