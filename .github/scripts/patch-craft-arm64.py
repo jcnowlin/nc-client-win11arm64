@@ -11,6 +11,11 @@ liblzma_path = sys.argv[5]
 libunistring_path = sys.argv[6]
 libffi_path = sys.argv[7]
 python_path = sys.argv[8]
+autoconf_path = sys.argv[9]
+automake_path = sys.argv[10]
+m4_path = sys.argv[11]
+iconv_path = sys.argv[12]
+gettext_path = sys.argv[13]
 
 # Patch 1: add ARM64 entries to the architectures dicts in
 # CraftSetupHelper.getMSVCEnv.
@@ -407,17 +412,27 @@ with open(python_path, 'w', encoding='utf-8') as f:
     f.write(s)
 print(f'Patched {python_path}: PCbuild/amd64 -> PCbuild/{{pcbuildArch}} in install()')
 
-# Patch 9: libs/libunistring/libunistring.py — ftp.gnu.org is unreachable
-# from the runners (curl --retry 10 exhausted, twice, an hour apart).
-# Rewrite the download targets to the kernel.org GNU mirror, which serves
-# byte-identical tarballs (SHA256 digests in the blueprint still verify).
-with open(libunistring_path, 'r', encoding='utf-8') as f:
-    s = f.read()
-old_mirror = 'https://ftp.gnu.org/gnu/libunistring/'
-new_mirror = 'https://mirrors.edge.kernel.org/gnu/libunistring/'
-if old_mirror not in s:
-    print('ERROR: could not find ftp.gnu.org URL in libunistring.py', file=sys.stderr)
-    sys.exit(1)
-with open(libunistring_path, 'w', encoding='utf-8') as f:
-    f.write(s.replace(old_mirror, new_mirror))
-print(f'Patched {libunistring_path}: ftp.gnu.org -> mirrors.edge.kernel.org')
+
+# Patch 9: rewrite ftp.gnu.org download URLs to the kernel.org GNU mirror
+# in every GNU blueprint. ftp.gnu.org is unreachable from the runners
+# (curl --retry 10 exhausted across multiple runs); kernel.org serves
+# byte-identical tarballs (blueprint SHA256 digests still verify).
+gnu_blueprint_paths = {
+    libunistring_path: "libunistring",
+    gettext_path: "gettext",
+    iconv_path: "iconv",
+    autoconf_path: "autoconf",
+    automake_path: "automake",
+    m4_path: "m4",
+}
+for bp_path, bp_name in gnu_blueprint_paths.items():
+    with open(bp_path, "r", encoding="utf-8") as f:
+        s = f.read()
+    s_new = s.replace("https://ftp.gnu.org/pub/gnu/", "https://mirrors.edge.kernel.org/gnu/")
+    s_new = s_new.replace("https://ftp.gnu.org/gnu/", "https://mirrors.edge.kernel.org/gnu/")
+    if s_new == s:
+        print(f"ERROR: no ftp.gnu.org URL found in {bp_name} blueprint", file=sys.stderr)
+        sys.exit(1)
+    with open(bp_path, "w", encoding="utf-8") as f:
+        f.write(s_new)
+    print(f"Patched {bp_path}: ftp.gnu.org -> mirrors.edge.kernel.org")
