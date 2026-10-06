@@ -92,7 +92,12 @@ jobs:
             'bin/CraftSetupHelper.py', 'blueprints/dev-utils/_windows/git/git.py',
             'blueprints/dev-utils/perl/perl.py', 'blueprints/libs/openssl/openssl.py',
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
-            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py'
+            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
+            'blueprints/dev-utils/_unix/autoconf/autoconf.py',
+            'blueprints/dev-utils/_unix/automake/automake.py',
+            'blueprints/dev-utils/_unix/m4/m4.py',
+            'blueprints/libs/_unix/iconv/iconv.py',
+            'blueprints/libs/gettext/gettext.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -319,7 +324,12 @@ jobs:
             'bin/CraftSetupHelper.py', 'blueprints/dev-utils/_windows/git/git.py',
             'blueprints/dev-utils/perl/perl.py', 'blueprints/libs/openssl/openssl.py',
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
-            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py'
+            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
+            'blueprints/dev-utils/_unix/autoconf/autoconf.py',
+            'blueprints/dev-utils/_unix/automake/automake.py',
+            'blueprints/dev-utils/_unix/m4/m4.py',
+            'blueprints/libs/_unix/iconv/iconv.py',
+            'blueprints/libs/gettext/gettext.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -536,7 +546,12 @@ jobs:
             'bin/CraftSetupHelper.py', 'blueprints/dev-utils/_windows/git/git.py',
             'blueprints/dev-utils/perl/perl.py', 'blueprints/libs/openssl/openssl.py',
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
-            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py'
+            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
+            'blueprints/dev-utils/_unix/autoconf/autoconf.py',
+            'blueprints/dev-utils/_unix/automake/automake.py',
+            'blueprints/dev-utils/_unix/m4/m4.py',
+            'blueprints/libs/_unix/iconv/iconv.py',
+            'blueprints/libs/gettext/gettext.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -753,7 +768,12 @@ jobs:
             'bin/CraftSetupHelper.py', 'blueprints/dev-utils/_windows/git/git.py',
             'blueprints/dev-utils/perl/perl.py', 'blueprints/libs/openssl/openssl.py',
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
-            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py'
+            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
+            'blueprints/dev-utils/_unix/autoconf/autoconf.py',
+            'blueprints/dev-utils/_unix/automake/automake.py',
+            'blueprints/dev-utils/_unix/m4/m4.py',
+            'blueprints/libs/_unix/iconv/iconv.py',
+            'blueprints/libs/gettext/gettext.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -973,7 +993,12 @@ jobs:
             'bin/CraftSetupHelper.py', 'blueprints/dev-utils/_windows/git/git.py',
             'blueprints/dev-utils/perl/perl.py', 'blueprints/libs/openssl/openssl.py',
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
-            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py'
+            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
+            'blueprints/dev-utils/_unix/autoconf/autoconf.py',
+            'blueprints/dev-utils/_unix/automake/automake.py',
+            'blueprints/dev-utils/_unix/m4/m4.py',
+            'blueprints/libs/_unix/iconv/iconv.py',
+            'blueprints/libs/gettext/gettext.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -1193,7 +1218,12 @@ jobs:
             'bin/CraftSetupHelper.py', 'blueprints/dev-utils/_windows/git/git.py',
             'blueprints/dev-utils/perl/perl.py', 'blueprints/libs/openssl/openssl.py',
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
-            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py'
+            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
+            'blueprints/dev-utils/_unix/autoconf/autoconf.py',
+            'blueprints/dev-utils/_unix/automake/automake.py',
+            'blueprints/dev-utils/_unix/m4/m4.py',
+            'blueprints/libs/_unix/iconv/iconv.py',
+            'blueprints/libs/gettext/gettext.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -1410,7 +1440,12 @@ jobs:
             'bin/CraftSetupHelper.py', 'blueprints/dev-utils/_windows/git/git.py',
             'blueprints/dev-utils/perl/perl.py', 'blueprints/libs/openssl/openssl.py',
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
-            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py'
+            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
+            'blueprints/dev-utils/_unix/autoconf/autoconf.py',
+            'blueprints/dev-utils/_unix/automake/automake.py',
+            'blueprints/dev-utils/_unix/m4/m4.py',
+            'blueprints/libs/_unix/iconv/iconv.py',
+            'blueprints/libs/gettext/gettext.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
