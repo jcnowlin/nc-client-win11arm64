@@ -406,3 +406,18 @@ for old_ref, new_ref in [
 with open(python_path, 'w', encoding='utf-8') as f:
     f.write(s)
 print(f'Patched {python_path}: PCbuild/amd64 -> PCbuild/{{pcbuildArch}} in install()')
+
+# Patch 9: libs/libunistring/libunistring.py — ftp.gnu.org is unreachable
+# from the runners (curl --retry 10 exhausted, twice, an hour apart).
+# Rewrite the download targets to the kernel.org GNU mirror, which serves
+# byte-identical tarballs (SHA256 digests in the blueprint still verify).
+with open(libunistring_path, 'r', encoding='utf-8') as f:
+    s = f.read()
+old_mirror = 'https://ftp.gnu.org/gnu/libunistring/'
+new_mirror = 'https://mirrors.edge.kernel.org/gnu/libunistring/'
+if old_mirror not in s:
+    print('ERROR: could not find ftp.gnu.org URL in libunistring.py', file=sys.stderr)
+    sys.exit(1)
+with open(libunistring_path, 'w', encoding='utf-8') as f:
+    f.write(s.replace(old_mirror, new_mirror))
+print(f'Patched {libunistring_path}: ftp.gnu.org -> mirrors.edge.kernel.org')
