@@ -16,6 +16,7 @@ automake_path = sys.argv[10]
 m4_path = sys.argv[11]
 iconv_path = sys.argv[12]
 gettext_path = sys.argv[13]
+cmake_base_path = sys.argv[14]
 
 # Patch 1: add ARM64 entries to the architectures dicts in
 # CraftSetupHelper.getMSVCEnv.
@@ -436,3 +437,36 @@ for bp_path, bp_name in gnu_blueprint_paths.items():
     with open(bp_path, "w", encoding="utf-8") as f:
         f.write(s_new)
     print(f"Patched {bp_path}: ftp.gnu.org -> mirrors.edge.kernel.org")
+# Patch 10: dev-utils/cmake-base/cmake-base.py — cmake.org is unreachable
+# from the runners (TCP connect timeouts even with curl --retry). Fetch the
+# Windows binary and its SHA-256 digest from Kitware's GitHub releases
+# instead, and pin the verified 4.1.4 digest directly (default target).
+with open(cmake_base_path, 'r', encoding='utf-8') as f:
+    s = f.read()
+old_cmake_url = 'self.targets[ver] = f"https://cmake.org/files/v{majorMinorStr}/cmake-{ver}-windows-x86_64.zip"'
+new_cmake_url = 'self.targets[ver] = f"https://github.com/Kitware/CMake/releases/download/v{ver}/cmake-{ver}-windows-x86_64.zip"'
+if old_cmake_url not in s:
+    print('ERROR: cmake.org Windows URL anchor not found in cmake-base.py', file=sys.stderr)
+    sys.exit(1)
+s = s.replace(old_cmake_url, new_cmake_url)
+old_digest_url = 'f"https://cmake.org/files/v{majorMinorStr}/cmake-{ver}-SHA-256.txt",'
+new_digest_url = 'f"https://github.com/Kitware/CMake/releases/download/v{ver}/cmake-{ver}-SHA-256.txt",'
+if old_digest_url not in s:
+    print('ERROR: cmake.org digest URL anchor not found in cmake-base.py', file=sys.stderr)
+    sys.exit(1)
+s = s.replace(old_digest_url, new_digest_url)
+anchor = '        self.description = "CMake, the cross-platform, open-source build system."'
+pin = (
+    '        # Pinned: verified against Kitware GitHub release v4.1.4.\n'
+    '        self.targetDigests["4.1.4"] = (\n'
+    '            "8c31aabdf2223a7bb5759209ada56a9a72c6a1c605c221f23967130d1989e171",\n'
+    '            CraftHash.HashAlgorithm.SHA256,\n'
+    '        )\n'
+)
+if anchor not in s:
+    print('ERROR: description anchor not found in cmake-base.py', file=sys.stderr)
+    sys.exit(1)
+s = s.replace(anchor, pin + anchor, 1)
+with open(cmake_base_path, 'w', encoding='utf-8') as f:
+    f.write(s)
+print(f'Patched {cmake_base_path}: cmake.org -> Kitware GitHub releases + pinned 4.1.4 digest')

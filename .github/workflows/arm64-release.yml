@@ -97,7 +97,8 @@ jobs:
             'blueprints/dev-utils/_unix/automake/automake.py',
             'blueprints/dev-utils/_unix/m4/m4.py',
             'blueprints/libs/_unix/iconv/iconv.py',
-            'blueprints/libs/gettext/gettext.py'
+            'blueprints/libs/gettext/gettext.py',
+            'blueprints/dev-utils/cmake-base/cmake-base.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -329,7 +330,8 @@ jobs:
             'blueprints/dev-utils/_unix/automake/automake.py',
             'blueprints/dev-utils/_unix/m4/m4.py',
             'blueprints/libs/_unix/iconv/iconv.py',
-            'blueprints/libs/gettext/gettext.py'
+            'blueprints/libs/gettext/gettext.py',
+            'blueprints/dev-utils/cmake-base/cmake-base.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -551,7 +553,8 @@ jobs:
             'blueprints/dev-utils/_unix/automake/automake.py',
             'blueprints/dev-utils/_unix/m4/m4.py',
             'blueprints/libs/_unix/iconv/iconv.py',
-            'blueprints/libs/gettext/gettext.py'
+            'blueprints/libs/gettext/gettext.py',
+            'blueprints/dev-utils/cmake-base/cmake-base.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -773,7 +776,8 @@ jobs:
             'blueprints/dev-utils/_unix/automake/automake.py',
             'blueprints/dev-utils/_unix/m4/m4.py',
             'blueprints/libs/_unix/iconv/iconv.py',
-            'blueprints/libs/gettext/gettext.py'
+            'blueprints/libs/gettext/gettext.py',
+            'blueprints/dev-utils/cmake-base/cmake-base.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -998,7 +1002,8 @@ jobs:
             'blueprints/dev-utils/_unix/automake/automake.py',
             'blueprints/dev-utils/_unix/m4/m4.py',
             'blueprints/libs/_unix/iconv/iconv.py',
-            'blueprints/libs/gettext/gettext.py'
+            'blueprints/libs/gettext/gettext.py',
+            'blueprints/dev-utils/cmake-base/cmake-base.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -1223,7 +1228,8 @@ jobs:
             'blueprints/dev-utils/_unix/automake/automake.py',
             'blueprints/dev-utils/_unix/m4/m4.py',
             'blueprints/libs/_unix/iconv/iconv.py',
-            'blueprints/libs/gettext/gettext.py'
+            'blueprints/libs/gettext/gettext.py',
+            'blueprints/dev-utils/cmake-base/cmake-base.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -1445,7 +1451,8 @@ jobs:
             'blueprints/dev-utils/_unix/automake/automake.py',
             'blueprints/dev-utils/_unix/m4/m4.py',
             'blueprints/libs/_unix/iconv/iconv.py',
-            'blueprints/libs/gettext/gettext.py'
+            'blueprints/libs/gettext/gettext.py',
+            'blueprints/dev-utils/cmake-base/cmake-base.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
