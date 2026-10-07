@@ -4,6 +4,7 @@
 
 """Apply Windows ARM64 fixes to stable Nextcloud/KDE Craft blueprints."""
 
+import os
 import sys
 
 
@@ -205,6 +206,71 @@ def bootstrap_zlib():
     print("zlib bootstrap complete.")
 
 
+def patch_gnu_mirrors(*repo_roots):
+    """Rewrite ftp.gnu.org download URLs to the kernel.org GNU mirror.
+
+    ftp.gnu.org is unreachable from the runners (curl --retry 10 exhausted
+    across multiple runs); kernel.org serves byte-identical tarballs and the
+    blueprint SHA256 digests still verify. Walks whole blueprint repos so any
+    GNU-hosted package (gperf, bison, mpc, nettle, ...) is covered.
+    """
+    patched = 0
+    for root in repo_roots:
+        for dirpath, _, filenames in os.walk(root):
+            for fn in filenames:
+                if not fn.endswith(".py"):
+                    continue
+                p = os.path.join(dirpath, fn)
+                s, line_ending = _read_normalized(p)
+                s_new = s.replace(
+                    "https://ftp.gnu.org/pub/gnu/", "https://mirrors.edge.kernel.org/gnu/"
+                )
+                s_new = s_new.replace(
+                    "https://ftp.gnu.org/gnu/", "https://mirrors.edge.kernel.org/gnu/"
+                )
+                if s_new != s:
+                    _write_preserving_line_endings(p, s_new, line_ending)
+                    patched += 1
+                    print(f"Patched {p}: ftp.gnu.org -> mirrors.edge.kernel.org")
+    print(f"GNU mirror rewrite: {patched} blueprint(s) patched")
+
+
+def patch_qt_mirrors(*repo_roots):
+    """Point Qt tarball downloads at a working mirror.
+
+    The Qt blueprints resolve their download URL from version.ini, but the
+    runner ended up with https://qt.mirror.constant.com (dead from the
+    runners: connect fails). Rewrite any Qt tarball/digest host to
+    mirrors.dotsrc.org (verified serving the tarballs). Prints the URLs it
+    finds so the log shows what the runner was actually using.
+    """
+    qt_hosts = [
+        "https://qt.mirror.constant.com",
+        "https://files.kde.org/qt",
+        "https://download.qt.io",
+    ]
+    replacement = "https://mirrors.dotsrc.org/qtproject"
+    patched = 0
+    for root in repo_roots:
+        for dirpath, _, filenames in os.walk(root):
+            for fn in filenames:
+                if fn != "version.ini":
+                    continue
+                p = os.path.join(dirpath, fn)
+                s, line_ending = _read_normalized(p)
+                for line in s.splitlines():
+                    if "tarballUrl" in line or "tarballDigestUrl" in line:
+                        print(f"Qt URL in {p}: {line.strip()}")
+                s_new = s
+                for host in qt_hosts:
+                    s_new = s_new.replace(host, replacement)
+                if s_new != s:
+                    _write_preserving_line_endings(p, s_new, line_ending)
+                    patched += 1
+                    print(f"Patched {p}: Qt mirror -> mirrors.dotsrc.org/qtproject")
+    print(f"Qt mirror rewrite: {patched} version.ini file(s) patched")
+
+
 if __name__ == "__main__":
     if len(sys.argv) != 4:
         print("Usage: patch-kde-blueprints-arm64.py <libjpeg-turbo.py> <pixman.py> <libp11.py>")
@@ -213,3 +279,8 @@ if __name__ == "__main__":
     patch_libjpeg(sys.argv[1])
     patch_pixman(sys.argv[2])
     patch_libp11(sys.argv[3])
+    # <repo>/libs/<pkg>/<pkg>.py -> <repo>
+    kde_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[1]))))
+    nextcloud_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[3]))))
+    patch_gnu_mirrors(kde_root, nextcloud_root)
+    patch_qt_mirrors(kde_root, nextcloud_root)
