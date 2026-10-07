@@ -113,4 +113,7 @@ jobs:
 
           # Pushes made by GITHUB_TOKEN do not recursively trigger workflows.
           # Dispatch the build explicitly on the newly-created source branch.
-          gh workflow run arm64-release.yml --ref "$ARM_BRANCH"
+          # NOTE: --repo is required. This job adds an `upstream` git remote
+          # (nextcloud/desktop), and without it gh resolves the workflow
+          # against nextcloud/desktop instead of this repo -> HTTP 404.
+          gh workflow run arm64-release.yml --ref "$ARM_BRANCH" --repo "$GITHUB_REPOSITORY"
