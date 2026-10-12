@@ -205,6 +205,83 @@ def patch_pkgconf_host_build(source: str) -> str:
     return s_new3
 
 
+# Patch 12: perl is a host tool (libs/openssl runs `perl Configure` during
+# its build). When cross-compiling Windows ARM64 from x64, build it for the
+# x64 host; otherwise the ARM64 perl.exe cannot run on the x64 runner.
+# The win32 Makefile also needs CRAFT_WIN64 set for x64 (not "undef").
+_PERL_METHODS = r'''
+    def make(self):
+        if _is_windows_arm64_cross():
+            hostEnv = _host_tool_env()
+            if not hostEnv:
+                CraftCore.log.error("host tool: cannot determine x64 host toolchain, aborting cross build")
+                return False
+            CraftCore.log.info("host tool: building for x64 host (ARM64 target)")
+            # CRAFT_WIN64="" selects the 64-bit build; the __init__ set it to
+            # "undef" for the ARM64 target.
+            orig_args = self.subinfo.options.make.args
+            fixed_args = [a for a in orig_args if not a.startswith("CRAFT_WIN64=")]
+            fixed_args.append("CRAFT_WIN64=")
+            saved_env = dict(os.environ)
+            os.environ.update(hostEnv)
+            self.subinfo.options.make.args = fixed_args
+            try:
+                return super().make()
+            finally:
+                os.environ.clear()
+                os.environ.update(saved_env)
+                self.subinfo.options.make.args = orig_args
+        return super().make()
+
+    def install(self):
+        if _is_windows_arm64_cross():
+            hostEnv = _host_tool_env()
+            if not hostEnv:
+                CraftCore.log.error("host tool: cannot determine x64 host toolchain, aborting cross build")
+                return False
+            saved_env = dict(os.environ)
+            os.environ.update(hostEnv)
+            orig_args = self.subinfo.options.install.args
+            fixed_args = [a for a in orig_args if not a.startswith("CRAFT_WIN64=")]
+            fixed_args.append("CRAFT_WIN64=")
+            self.subinfo.options.install.args = fixed_args
+            try:
+                return super().install()
+            finally:
+                os.environ.clear()
+                os.environ.update(saved_env)
+                self.subinfo.options.install.args = orig_args
+        return super().install()
+'''
+
+
+def patch_perl_host_build(source: str) -> str:
+    """Patch 12: build perl for the x64 host when cross-compiling to ARM64."""
+    s_new = re.sub(
+        r"^import os$",
+        "import os\nimport platform\nimport re",
+        source, count=1, flags=re.MULTILINE,
+    )
+    if s_new == source:
+        raise ValueError("could not patch perl imports")
+    s_new2 = re.sub(
+        r"\nclass PackageMSVC\(MakeFilePackageBase\):",
+        lambda m: "\n" + _HOST_TOOL_HELPERS.strip("\n") + "\n\n\nclass PackageMSVC(MakeFilePackageBase):",
+        s_new, count=1,
+    )
+    if s_new2 == s_new:
+        raise ValueError("could not inject perl host helpers")
+    # Insert make()/install() overrides before postInstall().
+    s_new3 = re.sub(
+        r"\n    def postInstall\(self\):",
+        lambda m: "\n" + _PERL_METHODS.strip("\n") + "\n\n    def postInstall(self):",
+        s_new2, count=1,
+    )
+    if s_new3 == s_new2:
+        raise ValueError("could not inject perl make()/install()")
+    return s_new3
+
+
 def main(argv):
     helper_path = argv[1]
     git_path    = argv[2]
@@ -216,6 +293,7 @@ def main(argv):
     python_path = argv[8]
     kshimgen_path = argv[9]
     pkgconf_path = argv[10]
+    perl_host_path = argv[11]
 
     with open(helper_path, 'r', encoding='utf-8') as f:
         helper_source = f.read()
@@ -629,6 +707,20 @@ def main(argv):
     with open(pkgconf_path, 'w', encoding='utf-8') as f:
         f.write(pkgconf_patched)
     print(f'Patched {pkgconf_path}: pkgconf builds for x64 host when cross-compiling to ARM64')
+
+    # Patch 12: blueprints/dev-utils/perl/perl.py — perl is a host tool
+    # (libs/openssl runs `perl Configure` during its build). When
+    # cross-compiling Windows ARM64 from x64, build it for the x64 host.
+    with open(perl_host_path, 'r', encoding='utf-8') as f:
+        perl_host_source = f.read()
+    try:
+        perl_host_patched = patch_perl_host_build(perl_host_source)
+    except ValueError as e:
+        print(f'ERROR: {e}', file=sys.stderr)
+        sys.exit(1)
+    with open(perl_host_path, 'w', encoding='utf-8') as f:
+        f.write(perl_host_patched)
+    print(f'Patched {perl_host_path}: perl builds for x64 host when cross-compiling to ARM64')
 
 
 if __name__ == "__main__":

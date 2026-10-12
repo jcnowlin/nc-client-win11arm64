@@ -252,5 +252,59 @@ class PatchPkgconfHostBuildTests(unittest.TestCase):
             module.patch_pkgconf_host_build("import info\nclass Package:\n    pass\n")
 
 
+# Minimal excerpt of upstream blueprints/dev-utils/perl/perl.py carrying the
+# PackageMSVC class head that Patch 12 targets.
+PERL_SNIPPET = '''\
+import multiprocessing
+import os
+import info
+import utils
+from CraftCore import CraftCore
+
+
+class PackageMSVC(MakeFilePackageBase):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def make(self):
+        return super().make()
+
+    def install(self):
+        return super().install()
+
+    def postInstall(self):
+        return True
+'''
+
+
+class PatchPerlHostBuildTests(unittest.TestCase):
+    """Regression tests for Patch 12 of patch-craft-arm64.py.
+
+    perl is a host tool: libs/openssl runs `perl Configure` during its
+    build. When cross-compiling Windows ARM64 from x64, an ARM64 perl.exe
+    cannot run on the x64 runner. It must be built for the x64 host (with
+    CRAFT_WIN64 set for 64-bit, not "undef").
+    """
+
+    def test_patch_applies_and_rewires_make_install(self):
+        result = module.patch_perl_host_build(PERL_SNIPPET)
+        self.assertIn("import os\nimport platform\nimport re", result)
+        self.assertIn("def _is_windows_arm64_cross():", result)
+        self.assertIn("def _host_tool_env():", result)
+        # Overrides are injected before postInstall, so they win over the
+        # originals via Python's last-definition-wins.
+        self.assertIn("CRAFT_WIN64=", result)
+        self.assertIn("def postInstall(self):", result)
+        # The override must come after the original make().
+        self.assertLess(
+            result.find("def make(self):\n        return super().make()"),
+            result.find('fixed_args.append("CRAFT_WIN64=")'),
+        )
+
+    def test_upstream_shape_change_is_rejected(self):
+        with self.assertRaises(ValueError):
+            module.patch_perl_host_build("import os\nclass PackageMSVC:\n    pass\n")
+
+
 if __name__ == "__main__":
     unittest.main()
