@@ -35,6 +35,101 @@ def patch_msvc_architectures(source: str) -> str:
     return s_new2
 
 
+# Patch 10: kshimgen is a host tool. Craft executes kshimgen.exe during the
+# build (utils.createShim runs it to generate shims), so when cross-compiling
+# Windows ARM64 from x64 it must be built for the x64 host. An ARM64
+# kshimgen.exe fails on the x64 runner with WinError 216 ("not compatible
+# with the version of Windows you're running") when dev-utils/cmake's
+# install() calls createShim.
+# The helpers below are injected into blueprints/dev-utils/kshimgen/kshimgen.py.
+# They are kept as string constants (single source of truth) so the test suite
+# can exec the exact injected code with mocked os/platform/CraftCore.
+_KSHIMGEN_HOST_HELPERS = r'''
+def _is_windows_arm64_cross():
+    """True when targeting Windows ARM64 from an x64 host."""
+    return (
+        CraftCore.compiler.isWindows
+        and CraftCore.compiler.architecture == CraftCore.compiler.Architecture.arm64
+        and platform.machine().lower() in ("amd64", "x86_64")
+    )
+
+
+def _x64_host_tool_env(path):
+    """Derive the x64 host toolchain from an ARM64 cross PATH.
+
+    Returns env overrides (PATH, LIB, CC, CXX), or {} if the host
+    toolchain cannot be determined. Everything is derived via path
+    substitution; no hardcoded VS paths or versions. INCLUDE is
+    arch-independent and left alone.
+    """
+    m = re.search(r"([^;]*[/\\]bin[/\\]hostx64[/\\])arm64", path, re.IGNORECASE)
+    if not m:
+        return {}
+    x64bin = m.group(1) + "x64"
+    x64cl = os.path.join(x64bin, "cl.exe")
+    if not os.path.isfile(x64cl):
+        return {}
+    lib = os.environ.get("LIB", "")
+    x64lib = re.sub(r"([/\\])arm64(?=;|$)", r"\1x64", lib, flags=re.IGNORECASE)
+    return {
+        "PATH": f"{x64bin}{os.pathsep}{path}",
+        "LIB": x64lib,
+        "CC": x64cl,
+        "CXX": x64cl,
+    }
+'''
+
+_KSHIMGEN_CONFIGURE = r'''
+        def configure(self):
+            cmakePath = CraftCore.standardDirs.craftRoot() / "dev-utils/cmake-base"
+            if CraftCore.compiler.isMacOS:
+                cmakePath /= "CMake.app/Contents/bin"
+            else:
+                cmakePath /= "bin"
+            path = f"{cmakePath}{os.pathsep}{os.environ['PATH']}"
+            env = {"PATH": path}
+            if _is_windows_arm64_cross():
+                # kshimgen runs on the build host (utils.createShim executes
+                # it); cross-compiling to ARM64 from x64, build it for x64.
+                hostEnv = _x64_host_tool_env(path)
+                if not hostEnv:
+                    CraftCore.log.error("kshimgen: cannot determine x64 host toolchain, aborting cross build")
+                    return False
+                env.update(hostEnv)
+                CraftCore.log.info("kshimgen: building for x64 host (ARM64 target)")
+            with utils.ScopedEnv(env):
+                return super().configure()
+'''
+
+
+def patch_kshimgen_host_build(source: str) -> str:
+    """Patch 10: build kshimgen for the x64 host when cross-compiling to ARM64."""
+    s_new = re.sub(
+        r"^import os$",
+        "import os\nimport platform\nimport re",
+        source, count=1, flags=re.MULTILINE,
+    )
+    if s_new == source:
+        raise ValueError("could not patch kshimgen imports")
+    s_new2 = re.sub(
+        r"\n\n\nclass subinfo",
+        lambda m: "\n\n" + _KSHIMGEN_HOST_HELPERS.strip("\n") + "\n\n\nclass subinfo",
+        s_new, count=1,
+    )
+    if s_new2 == s_new:
+        raise ValueError("could not inject kshimgen host helpers")
+    # configure() is the last method in the file; replace it through EOF.
+    # (Lambda replacement: the injected code contains backslash sequences.)
+    s_new3 = re.sub(
+        r"        def configure\(self\):.*\Z",
+        lambda m: _KSHIMGEN_CONFIGURE.strip("\n"),
+        s_new2, count=1, flags=re.DOTALL,
+    )
+    if s_new3 == s_new2:
+        raise ValueError("could not patch kshimgen configure()")
+    return s_new3
+
+
 def main(argv):
     helper_path = argv[1]
     git_path    = argv[2]
@@ -44,6 +139,7 @@ def main(argv):
     libunistring_path = argv[6]
     libffi_path = argv[7]
     python_path = argv[8]
+    kshimgen_path = argv[9]
 
     with open(helper_path, 'r', encoding='utf-8') as f:
         helper_source = f.read()
@@ -426,6 +522,21 @@ def main(argv):
     with open(python_path, 'w', encoding='utf-8') as f:
         f.write(s)
     print(f'Patched {python_path}: PCbuild/amd64 -> PCbuild/{{pcbuildArch}} in install()')
+
+    # Patch 10: blueprints/dev-utils/kshimgen/kshimgen.py — kshimgen is a
+    # host tool (Craft runs kshimgen.exe via utils.createShim). When
+    # cross-compiling Windows ARM64 from x64, build it for the x64 host;
+    # an ARM64 kshimgen.exe dies with WinError 216 on the x64 runner.
+    with open(kshimgen_path, 'r', encoding='utf-8') as f:
+        kshimgen_source = f.read()
+    try:
+        kshimgen_patched = patch_kshimgen_host_build(kshimgen_source)
+    except ValueError as e:
+        print(f'ERROR: {e}', file=sys.stderr)
+        sys.exit(1)
+    with open(kshimgen_path, 'w', encoding='utf-8') as f:
+        f.write(kshimgen_patched)
+    print(f'Patched {kshimgen_path}: kshimgen builds for x64 host when cross-compiling to ARM64')
 
 
 if __name__ == "__main__":
