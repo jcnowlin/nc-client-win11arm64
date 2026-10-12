@@ -96,7 +96,7 @@ else:
 '''
 
 
-class PatchKshimgenHostBuildTests(unittest.TestCase):
+class PatchHostToolBuildTests(unittest.TestCase):
     """Regression tests for Patch 10 of patch-craft-arm64.py.
 
     kshimgen is a host tool: Craft executes kshimgen.exe via
@@ -109,7 +109,7 @@ class PatchKshimgenHostBuildTests(unittest.TestCase):
         result = module.patch_kshimgen_host_build(KSHIMGEN_SNIPPET)
         self.assertIn("import platform\nimport re", result)
         self.assertIn("def _is_windows_arm64_cross():", result)
-        self.assertIn("def _kshimgen_host_env():", result)
+        self.assertIn("def _host_tool_env():", result)
         self.assertIn("_is_windows_arm64_cross()", result)
         self.assertIn("building for x64 host", result)
         # Old native-only configure() must be gone.
@@ -155,7 +155,7 @@ class PatchKshimgenHostBuildTests(unittest.TestCase):
             "platform": fake_platform,
             "CraftCore": fake_craftcore,
         }
-        exec(module._KSHIMGEN_HOST_HELPERS, namespace)
+        exec(module._HOST_TOOL_HELPERS, namespace)
         return namespace
 
     def test_host_env_derived_from_cross_path(self):
@@ -168,7 +168,7 @@ class PatchKshimgenHostBuildTests(unittest.TestCase):
             path=path, lib=lib, cl_exists=True,
         )
         self.assertTrue(ns["_is_windows_arm64_cross"]())
-        env = ns["_kshimgen_host_env"]()
+        env = ns["_host_tool_env"]()
         x64bin = vs + r"\bin\HostX64\x64"
         self.assertEqual(env["CC"], x64bin + r"\cl.exe")
         self.assertEqual(env["CXX"], x64bin + r"\cl.exe")
@@ -186,7 +186,7 @@ class PatchKshimgenHostBuildTests(unittest.TestCase):
             machine="AMD64", is_windows=True, arch="arm64",
             path=r"C:\Windows\System32", lib="", cl_exists=True,
         )
-        self.assertEqual(ns["_kshimgen_host_env"](), {})
+        self.assertEqual(ns["_host_tool_env"](), {})
 
     def test_host_env_empty_when_cl_missing(self):
         vs = r"C:\VS\VC\Tools\MSVC\14.51.36231"
@@ -195,7 +195,7 @@ class PatchKshimgenHostBuildTests(unittest.TestCase):
             machine="AMD64", is_windows=True, arch="arm64",
             path=path, lib="", cl_exists=False,
         )
-        self.assertEqual(ns["_kshimgen_host_env"](), {})
+        self.assertEqual(ns["_host_tool_env"](), {})
 
     def test_not_cross_when_target_is_native(self):
         ns = self._load_helpers(
@@ -203,6 +203,53 @@ class PatchKshimgenHostBuildTests(unittest.TestCase):
             path=r"C:\VS\bin\HostX64\x64", lib="", cl_exists=True,
         )
         self.assertFalse(ns["_is_windows_arm64_cross"]())
+
+
+# Minimal excerpt of upstream blueprints/dev-utils/pkgconf/pkgconf.py
+# carrying the import block and the Package class head that Patch 11 targets.
+PKGCONF_SNIPPET = '''\
+# -*- coding: utf-8 -*-
+import info
+import utils
+from CraftCore import CraftCore
+from Package.AutoToolsPackageBase import AutoToolsPackageBase
+from Utils import CraftHash
+
+
+class Package(AutoToolsPackageBase):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.shell.useMSVCCompatEnv = True
+
+    def postInstall(self):
+        return utils.createShim(self.installDir() / "bin/pkg-config",
+                                self.installDir() / "bin/pkgconf")
+'''
+
+
+class PatchPkgconfHostBuildTests(unittest.TestCase):
+    """Regression tests for Patch 11 of patch-craft-arm64.py.
+
+    pkgconf is a host tool: its postInstall() creates a shim via
+    utils.createShim, and that shim is used during builds. When
+    cross-compiling Windows ARM64 from x64, an ARM64 pkgconf.exe cannot
+    run on the x64 runner; moreover its configure script fails with
+    "cannot run C compiled programs" when it tries to execute an ARM64
+    test binary. It must be built for the x64 host.
+    """
+
+    def test_patch_applies_and_rewires_configure_make(self):
+        result = module.patch_pkgconf_host_build(PKGCONF_SNIPPET)
+        self.assertIn("import os\nimport platform\nimport re", result)
+        self.assertIn("def _is_windows_arm64_cross():", result)
+        self.assertIn("def _host_tool_env():", result)
+        self.assertIn("def configure(self):", result)
+        self.assertIn("def make(self, dummyBuildType=None):", result)
+        self.assertIn("def postInstall(self):", result)
+
+    def test_upstream_shape_change_is_rejected(self):
+        with self.assertRaises(ValueError):
+            module.patch_pkgconf_host_build("import info\nclass Package:\n    pass\n")
 
 
 if __name__ == "__main__":

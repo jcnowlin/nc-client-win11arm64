@@ -44,7 +44,7 @@ def patch_msvc_architectures(source: str) -> str:
 # The helpers below are injected into blueprints/dev-utils/kshimgen/kshimgen.py.
 # They are kept as string constants (single source of truth) so the test suite
 # can exec the exact injected code with mocked os/platform/CraftCore.
-_KSHIMGEN_HOST_HELPERS = r'''
+_HOST_TOOL_HELPERS = r'''
 def _is_windows_arm64_cross():
     """True when targeting Windows ARM64 from an x64 host."""
     return (
@@ -54,7 +54,7 @@ def _is_windows_arm64_cross():
     )
 
 
-def _kshimgen_host_env():
+def _host_tool_env():
     """Env overrides to build kshimgen for the x64 host.
 
     Returns {} when not cross-compiling, or when the host toolchain
@@ -95,15 +95,15 @@ _KSHIMGEN_CONFIGURE = r'''
                 cmakePath /= "bin"
             path = f"{cmakePath}{os.pathsep}{os.environ['PATH']}"
             env = {"PATH": path}
-            hostEnv = _kshimgen_host_env()
+            hostEnv = _host_tool_env()
             if _is_windows_arm64_cross():
                 # kshimgen runs on the build host (utils.createShim executes
                 # it); cross-compiling to ARM64 from x64, build it for x64.
                 if not hostEnv:
-                    CraftCore.log.error("kshimgen: cannot determine x64 host toolchain, aborting cross build")
+                    CraftCore.log.error("host tool: cannot determine x64 host toolchain, aborting cross build")
                     return False
                 env.update(hostEnv)
-                CraftCore.log.info("kshimgen: building for x64 host (ARM64 target)")
+                CraftCore.log.info("host tool: building for x64 host (ARM64 target)")
             with utils.ScopedEnv(env):
                 return super().configure()
 
@@ -111,10 +111,10 @@ _KSHIMGEN_CONFIGURE = r'''
             # The host toolchain must also be active for the link step;
             # configure() alone is not enough (CMake hardcodes the compiler
             # but the linker still resolves libraries via LIB at build time).
-            hostEnv = _kshimgen_host_env()
+            hostEnv = _host_tool_env()
             if _is_windows_arm64_cross():
                 if not hostEnv:
-                    CraftCore.log.error("kshimgen: cannot determine x64 host toolchain, aborting cross build")
+                    CraftCore.log.error("host tool: cannot determine x64 host toolchain, aborting cross build")
                     return False
                 with utils.ScopedEnv(hostEnv):
                     return super().make()
@@ -133,7 +133,7 @@ def patch_kshimgen_host_build(source: str) -> str:
         raise ValueError("could not patch kshimgen imports")
     s_new2 = re.sub(
         r"\n\n\nclass subinfo",
-        lambda m: "\n\n" + _KSHIMGEN_HOST_HELPERS.strip("\n") + "\n\n\nclass subinfo",
+        lambda m: "\n\n" + _HOST_TOOL_HELPERS.strip("\n") + "\n\n\nclass subinfo",
         s_new, count=1,
     )
     if s_new2 == s_new:
@@ -150,6 +150,61 @@ def patch_kshimgen_host_build(source: str) -> str:
     return s_new3
 
 
+# Patch 11: pkgconf is a host tool (its postInstall creates a shim via
+# utils.createShim, and the shim is used during builds). When cross-compiling
+# Windows ARM64 from x64, build it for the x64 host; otherwise its configure
+# script compiles an ARM64 test binary and fails with "cannot run C compiled
+# programs" when it tries to execute it.
+_PKGCONF_METHODS = r'''
+    def configure(self):
+        hostEnv = _host_tool_env()
+        if _is_windows_arm64_cross():
+            if not hostEnv:
+                CraftCore.log.error("host tool: cannot determine x64 host toolchain, aborting cross build")
+                return False
+            CraftCore.log.info("host tool: building for x64 host (ARM64 target)")
+            with utils.ScopedEnv(hostEnv):
+                return super().configure()
+        return super().configure()
+
+    def make(self, dummyBuildType=None):
+        hostEnv = _host_tool_env()
+        if _is_windows_arm64_cross():
+            if not hostEnv:
+                CraftCore.log.error("host tool: cannot determine x64 host toolchain, aborting cross build")
+                return False
+            with utils.ScopedEnv(hostEnv):
+                return super().make(dummyBuildType)
+        return super().make(dummyBuildType)
+'''
+
+
+def patch_pkgconf_host_build(source: str) -> str:
+    """Patch 11: build pkgconf for the x64 host when cross-compiling to ARM64."""
+    s_new = re.sub(
+        r"^# -\*- coding: utf-8 -\*-$",
+        "# -*- coding: utf-8 -*-\nimport os\nimport platform\nimport re",
+        source, count=1, flags=re.MULTILINE,
+    )
+    if s_new == source:
+        raise ValueError("could not patch pkgconf imports")
+    s_new2 = re.sub(
+        r"\n\nclass Package\(AutoToolsPackageBase\):",
+        lambda m: "\n\n" + _HOST_TOOL_HELPERS.strip("\n") + "\n\n\nclass Package(AutoToolsPackageBase):",
+        s_new, count=1,
+    )
+    if s_new2 == s_new:
+        raise ValueError("could not inject pkgconf host helpers")
+    s_new3 = re.sub(
+        r"\n    def postInstall\(self\):",
+        lambda m: "\n" + _PKGCONF_METHODS.strip("\n") + "\n\n    def postInstall(self):",
+        s_new2, count=1,
+    )
+    if s_new3 == s_new2:
+        raise ValueError("could not inject pkgconf configure()/make()")
+    return s_new3
+
+
 def main(argv):
     helper_path = argv[1]
     git_path    = argv[2]
@@ -160,6 +215,7 @@ def main(argv):
     libffi_path = argv[7]
     python_path = argv[8]
     kshimgen_path = argv[9]
+    pkgconf_path = argv[10]
 
     with open(helper_path, 'r', encoding='utf-8') as f:
         helper_source = f.read()
@@ -557,6 +613,22 @@ def main(argv):
     with open(kshimgen_path, 'w', encoding='utf-8') as f:
         f.write(kshimgen_patched)
     print(f'Patched {kshimgen_path}: kshimgen builds for x64 host when cross-compiling to ARM64')
+
+    # Patch 11: blueprints/dev-utils/pkgconf/pkgconf.py — pkgconf is a host
+    # tool (its postInstall creates a shim via utils.createShim, used during
+    # builds). When cross-compiling Windows ARM64 from x64, build it for the
+    # x64 host; otherwise configure fails with "cannot run C compiled
+    # programs" when it tries to execute an ARM64 test binary.
+    with open(pkgconf_path, 'r', encoding='utf-8') as f:
+        pkgconf_source = f.read()
+    try:
+        pkgconf_patched = patch_pkgconf_host_build(pkgconf_source)
+    except ValueError as e:
+        print(f'ERROR: {e}', file=sys.stderr)
+        sys.exit(1)
+    with open(pkgconf_path, 'w', encoding='utf-8') as f:
+        f.write(pkgconf_patched)
+    print(f'Patched {pkgconf_path}: pkgconf builds for x64 host when cross-compiling to ARM64')
 
 
 if __name__ == "__main__":
