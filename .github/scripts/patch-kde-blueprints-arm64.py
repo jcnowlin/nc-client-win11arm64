@@ -171,16 +171,19 @@ def bootstrap_zlib():
     # Set up MSVC environment for ARM64 cross-compilation.
     # The workflow does not run msvc-dev-cmd before this script, so we
     # locate VS via vswhere and run vcvars ourselves.
+    # We use the Ninja generator (not Visual Studio) to avoid VS version
+    # detection issues — the runner has VS 2026 but an older CMake that
+    # doesn't recognize the VS18 generator.
     vswhere = r"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
     if not os.path.exists(vswhere):
         raise RuntimeError("vswhere not found; cannot locate Visual Studio")
     vs_path = subprocess.run(
-        [vswhere, "-version", "[17.0,18.0)", "-products", "*",
-         "-property", "installationPath"],
+        [vswhere, "-latest", "-products", "*", "-property", "installationPath"],
         capture_output=True, text=True, check=True,
-    ).stdout.strip().splitlines()[0].strip()
-    if not vs_path:
-        raise RuntimeError("Visual Studio 2022 (v17) not found via vswhere")
+    ).stdout.strip().splitlines()
+    if not vs_path or not vs_path[0].strip():
+        raise RuntimeError("Visual Studio not found via vswhere")
+    vs_path = vs_path[0].strip()
     vcvars = os.path.join(vs_path, "VC", "Auxiliary", "Build", "vcvarsamd64_arm64.bat")
     if not os.path.exists(vcvars):
         # Fall back to vcvars64.bat with amd64_arm64 arg
@@ -200,6 +203,10 @@ def bootstrap_zlib():
             k, v = line.split("=", 1)
             os.environ[k] = v
     print(f"MSVC environment set up from {vs_path}")
+
+    # Ninja is preinstalled on GitHub runners; verify it's available
+    if shutil.which("ninja") is None:
+        raise RuntimeError("zlib bootstrap requires ninja on PATH")
 
     zlib_ver = "1.3.1"
     runner_temp = os.environ.get("RUNNER_TEMP", "/tmp")
@@ -221,17 +228,20 @@ def bootstrap_zlib():
 
     shutil.rmtree(build_dir, ignore_errors=True)
     os.makedirs(build_dir, exist_ok=True)
+    # Use Ninja generator: doesn't require VS version detection (runner has
+    # VS 2026 but older CMake), and vcvars already set up the ARM64 env.
     subprocess.run(
         [
             "cmake", "-S", extracted, "-B", build_dir,
-            "-G", "Visual Studio 17 2022", "-A", "ARM64",
+            "-G", "Ninja",
             f"-DCMAKE_INSTALL_PREFIX={craft_root}",
             "-DBUILD_SHARED_LIBS=ON",
+            "-DCMAKE_BUILD_TYPE=Release",
         ],
         check=True,
     )
-    subprocess.run(["cmake", "--build", build_dir, "--config", "Release"], check=True)
-    subprocess.run(["cmake", "--install", build_dir, "--config", "Release"], check=True)
+    subprocess.run(["cmake", "--build", build_dir], check=True)
+    subprocess.run(["cmake", "--install", build_dir], check=True)
 
     if not os.path.exists(zlib_lib):
         raise RuntimeError(f"zlib bootstrap failed: {zlib_lib} not created")
