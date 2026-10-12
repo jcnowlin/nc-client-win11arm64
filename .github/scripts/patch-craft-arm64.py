@@ -221,6 +221,10 @@ def patch_pkgconf_host_build(source: str) -> str:
 # The win32 Makefile also needs CRAFT_WIN64 set for x64 (not "undef").
 _PERL_METHODS = r'''
     def make(self):
+        # NOTE: This overrides PackageMSVC.make() entirely (Python's
+        # last-definition-wins). We replicate its logic here because
+        # super().make() would skip the os.chdir(self.sourceDir() / "win32")
+        # that the original does.
         if _is_windows_arm64_cross():
             hostEnv = _host_tool_env()
             if not hostEnv:
@@ -239,14 +243,22 @@ _PERL_METHODS = r'''
             os.environ.update(hostEnv)
             self.subinfo.options.make.args = Arguments(fixed_list)
             try:
-                return super().make()
+                with utils.ScopedEnv(self._globEnv()):
+                    os.chdir(self.sourceDir() / "win32")
+                    return utils.system(Arguments([self.makeProgram, self.makeOptions(self.subinfo.options.make.args)]))
             finally:
                 os.environ.clear()
                 os.environ.update(saved_env)
                 self.subinfo.options.make.args = orig_args
-        return super().make()
+        # Non-cross: replicate original PackageMSVC.make().
+        with utils.ScopedEnv(self._globEnv()):
+            os.chdir(self.sourceDir() / "win32")
+            from Utils.Arguments import Arguments
+            return utils.system(Arguments([self.makeProgram, self.makeOptions(self.subinfo.options.make.args)]))
 
     def install(self):
+        # NOTE: Same as make() above — replicates PackageMSVC.install()
+        # instead of calling super(), which would skip the original logic.
         if _is_windows_arm64_cross():
             hostEnv = _host_tool_env()
             if not hostEnv:
@@ -261,12 +273,40 @@ _PERL_METHODS = r'''
             fixed_list.append("CRAFT_WIN64=")
             self.subinfo.options.install.args = Arguments(fixed_list)
             try:
-                return super().install()
+                with utils.ScopedEnv(self._globEnv()):
+                    if not BuildSystemBase.install(self):
+                        return False
+                    os.chdir(self.sourceDir() / "win32")
+                    if not utils.system(Arguments([self.makeProgram, self.makeOptions(self.subinfo.options.install.args), f"DESTDIR={self.installDir()}"])):
+                        return False
+                def makeWriatable(root):
+                    with os.scandir(root) as scan:
+                        for f in scan:
+                            utils.makeWritable(f.path)
+                            if f.is_dir():
+                                makeWriatable(f.path)
+                makeWriatable(self.installDir())
+                return True
             finally:
                 os.environ.clear()
                 os.environ.update(saved_env)
                 self.subinfo.options.install.args = orig_args
-        return super().install()
+        # Non-cross: replicate original PackageMSVC.install().
+        with utils.ScopedEnv(self._globEnv()):
+            if not BuildSystemBase.install(self):
+                return False
+            os.chdir(self.sourceDir() / "win32")
+            from Utils.Arguments import Arguments
+            if not utils.system(Arguments([self.makeProgram, self.makeOptions(self.subinfo.options.install.args), f"DESTDIR={self.installDir()}"])):
+                return False
+        def makeWriatable(root):
+            with os.scandir(root) as scan:
+                for f in scan:
+                    utils.makeWritable(f.path)
+                    if f.is_dir():
+                        makeWriatable(f.path)
+        makeWriatable(self.installDir())
+        return True
 '''
 
 
