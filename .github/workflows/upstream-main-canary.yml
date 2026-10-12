@@ -71,6 +71,12 @@ jobs:
           fi
 
           git checkout -B "$canary_branch" "$upstream_sha"
+          # Remove upstream workflows to avoid needing the `workflow` scope
+          # on push. We only need arm64-release.yml from the tooling overlay.
+          # (Upstream's block-unconventional-commits.yml etc. would otherwise
+          # require a PAT with workflow scope to push.)
+          git rm -q -r --cached .github/workflows/ 2>/dev/null || true
+          rm -rf .github/workflows/
           git checkout origin/arm64-tooling -- .github/scripts .github/workflows/arm64-release.yml
           # Don't sweep compiled Python cache into the canary commit.
           find .github/scripts -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
