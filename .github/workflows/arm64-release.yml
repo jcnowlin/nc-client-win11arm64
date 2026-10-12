@@ -35,6 +35,9 @@ jobs:
         with:
           python-version: '3.12'
           architecture: x64
+      - uses: shogo82148/actions-setup-perl@v1
+        with:
+          distribution: strawberry
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -246,6 +249,9 @@ jobs:
         with:
           python-version: '3.12'
           architecture: x64
+      - uses: shogo82148/actions-setup-perl@v1
+        with:
+          distribution: strawberry
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -447,6 +453,9 @@ jobs:
         with:
           python-version: '3.12'
           architecture: x64
+      - uses: shogo82148/actions-setup-perl@v1
+        with:
+          distribution: strawberry
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -648,6 +657,9 @@ jobs:
         with:
           python-version: '3.12'
           architecture: x64
+      - uses: shogo82148/actions-setup-perl@v1
+        with:
+          distribution: strawberry
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -852,6 +864,9 @@ jobs:
         with:
           python-version: '3.12'
           architecture: x64
+      - uses: shogo82148/actions-setup-perl@v1
+        with:
+          distribution: strawberry
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -1056,6 +1071,9 @@ jobs:
         with:
           python-version: '3.12'
           architecture: x64
+      - uses: shogo82148/actions-setup-perl@v1
+        with:
+          distribution: strawberry
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -1257,6 +1275,9 @@ jobs:
         with:
           python-version: '3.12'
           architecture: x64
+      - uses: shogo82148/actions-setup-perl@v1
+        with:
+          distribution: strawberry
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
