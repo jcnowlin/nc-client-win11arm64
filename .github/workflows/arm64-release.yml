@@ -7,6 +7,7 @@ on:
       - 'arm64/v*'
       - 'arm64/stable-*'
       - 'canary/upstream-main'
+      - 'canary/stable-*'
   workflow_dispatch:
 permissions:
   contents: write
@@ -16,7 +17,7 @@ concurrency:
 jobs:
   checkpoint-01:
     name: checkpoint-01
-    runs-on: windows-11-arm
+    runs-on: windows-latest
     timeout-minutes: 360
     defaults:
       run:
@@ -33,7 +34,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
-          architecture: arm64
+          architecture: x64
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -224,7 +225,7 @@ jobs:
   checkpoint-02:
     name: checkpoint-02
     needs: checkpoint-01
-    runs-on: windows-11-arm
+    runs-on: windows-latest
     timeout-minutes: 360
     defaults:
       run:
@@ -241,7 +242,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
-          architecture: arm64
+          architecture: x64
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -422,7 +423,7 @@ jobs:
   checkpoint-03:
     name: checkpoint-03
     needs: checkpoint-02
-    runs-on: windows-11-arm
+    runs-on: windows-latest
     timeout-minutes: 360
     defaults:
       run:
@@ -439,7 +440,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
-          architecture: arm64
+          architecture: x64
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -620,7 +621,7 @@ jobs:
   checkpoint-04:
     name: checkpoint-04
     needs: checkpoint-03
-    runs-on: windows-11-arm
+    runs-on: windows-latest
     timeout-minutes: 360
     defaults:
       run:
@@ -637,7 +638,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
-          architecture: arm64
+          architecture: x64
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -821,7 +822,7 @@ jobs:
   checkpoint-05:
     name: checkpoint-05
     needs: checkpoint-04
-    runs-on: windows-11-arm
+    runs-on: windows-latest
     timeout-minutes: 360
     defaults:
       run:
@@ -838,7 +839,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
-          architecture: arm64
+          architecture: x64
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -1022,7 +1023,7 @@ jobs:
   dependency-complete:
     name: dependency-complete
     needs: checkpoint-05
-    runs-on: windows-11-arm
+    runs-on: windows-latest
     timeout-minutes: 360
     defaults:
       run:
@@ -1039,7 +1040,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
-          architecture: arm64
+          architecture: x64
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -1220,7 +1221,7 @@ jobs:
   build:
     name: build
     needs: dependency-complete
-    runs-on: windows-11-arm
+    runs-on: windows-latest
     timeout-minutes: 360
     defaults:
       run:
@@ -1237,7 +1238,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
-          architecture: arm64
+          architecture: x64
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
