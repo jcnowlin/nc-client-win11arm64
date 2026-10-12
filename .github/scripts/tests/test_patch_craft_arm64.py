@@ -246,6 +246,9 @@ class PatchPkgconfHostBuildTests(unittest.TestCase):
         self.assertIn("def configure(self):", result)
         self.assertIn("def make(self, dummyBuildType=None):", result)
         self.assertIn("def postInstall(self):", result)
+        # As a host tool, pkgconf forces the x64 triplets (Patch 13 sets
+        # aarch64 for the ARM64 target by default).
+        self.assertIn('"--host=x86_64-w64-mingw32"', result)
 
     def test_upstream_shape_change_is_rejected(self):
         with self.assertRaises(ValueError):
@@ -304,6 +307,61 @@ class PatchPerlHostBuildTests(unittest.TestCase):
     def test_upstream_shape_change_is_rejected(self):
         with self.assertRaises(ValueError):
             module.patch_perl_host_build("import os\nclass PackageMSVC:\n    pass\n")
+
+
+# Minimal excerpt of upstream bin/BuildSystem/AutoToolsBuildSystem.py
+# carrying the Windows platform selection that Patch 13 targets.
+AUTOTOOLS_SYSTEM_SNIPPET = '''\
+class AutoToolsBuildSystem:
+    def __init__(self, package):
+        self.platform = Arguments()
+        if False:
+            pass
+        elif CraftCore.compiler.isWindows:
+            if CraftCore.compiler.architecture == CraftCompiler.Architecture.x86_32:
+                self.platform = Arguments(
+                    [
+                        "--host=i686-w64-mingw32",
+                        "--build=i686-w64-mingw32",
+                        "--target=i686-w64-mingw32",
+                    ]
+                )
+            else:
+                self.platform = Arguments(
+                    [
+                        "--host=x86_64-w64-mingw32",
+                        "--build=x86_64-w64-mingw32",
+                        "--target=x86_64-w64-mingw32",
+                    ]
+                )
+'''
+
+
+class PatchAutotoolsArm64HostTests(unittest.TestCase):
+    """Regression tests for Patch 13 of patch-craft-arm64.py.
+
+    Upstream AutoToolsBuildSystem only distinguishes x86_32 vs "everything
+    else" on Windows, so an ARM64 target gets --host=x86_64-w64-mingw32.
+    Configure then believes the build is native, tries to execute the ARM64
+    test binary on the x64 host, and fails with "cannot run C compiled
+    programs".
+    """
+
+    def test_patch_adds_arm64_branch(self):
+        result = module.patch_autotools_arm64_host(AUTOTOOLS_SYSTEM_SNIPPET)
+        self.assertIn(
+            "elif CraftCore.compiler.architecture == CraftCompiler.Architecture.arm64:",
+            result,
+        )
+        self.assertIn('"--host=aarch64-w64-mingw32"', result)
+        self.assertIn('"--target=aarch64-w64-mingw32"', result)
+        # x86_64 and i686 branches are preserved.
+        self.assertIn('"--host=x86_64-w64-mingw32"', result)
+        self.assertIn('"--host=i686-w64-mingw32"', result)
+
+    def test_upstream_shape_change_is_rejected(self):
+        with self.assertRaises(ValueError):
+            module.patch_autotools_arm64_host("class AutoToolsBuildSystem:\n    pass\n")
 
 
 if __name__ == "__main__":

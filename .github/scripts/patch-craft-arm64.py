@@ -163,6 +163,16 @@ _PKGCONF_METHODS = r'''
                 CraftCore.log.error("host tool: cannot determine x64 host toolchain, aborting cross build")
                 return False
             CraftCore.log.info("host tool: building for x64 host (ARM64 target)")
+            # Patch 13 sets --host=aarch64 for the ARM64 target; as a host
+            # tool pkgconf needs the x64 triplets instead.
+            from Utils.Arguments import Arguments
+            self.platform = Arguments(
+                [
+                    "--host=x86_64-w64-mingw32",
+                    "--build=x86_64-w64-mingw32",
+                    "--target=x86_64-w64-mingw32",
+                ]
+            )
             with utils.ScopedEnv(hostEnv):
                 return super().configure()
         return super().configure()
@@ -282,6 +292,43 @@ def patch_perl_host_build(source: str) -> str:
     return s_new3
 
 
+def patch_autotools_arm64_host(source: str) -> str:
+    """Patch 13: teach AutoToolsBuildSystem about Windows ARM64.
+
+    The upstream __init__ only handles x86_32 vs "everything else" for
+    Windows, so an ARM64 target falls through to --host=x86_64-w64-mingw32.
+    Configure then believes the build is native, tries to execute the
+    ARM64 test binary on the x64 host, and dies with "cannot run C compiled
+    programs". For an ARM64 target, --host/--target must be aarch64; --build
+    is the machine doing the building (x64 when cross-compiling).
+    Host tools (e.g. pkgconf via Patch 11) override self.platform back to
+    x86_64 for their x64 host build.
+    """
+    s_new = re.sub(
+        r"(\s+)else:\n(\s+self\.platform = Arguments\(\n\s+\[\n\s+\"--host=x86_64-w64-mingw32\",)",
+        r"""\1elif CraftCore.compiler.architecture == CraftCompiler.Architecture.arm64:
+\1    # Windows ARM64 target: --host/--target are ARM64; --build is the
+\1    # machine doing the building (x64 when cross-compiling from x64).
+\1    if CraftCore.compiler.isNative():
+\1        _build_triplet = "aarch64-w64-mingw32"
+\1    else:
+\1        _build_triplet = "x86_64-w64-mingw32"
+\1    self.platform = Arguments(
+\1        [
+\1            "--host=aarch64-w64-mingw32",
+\1            f"--build={_build_triplet}",
+\1            "--target=aarch64-w64-mingw32",
+\1        ]
+\1    )
+\1else:
+\2""",
+        source, count=1,
+    )
+    if s_new == source:
+        raise ValueError("could not patch AutoToolsBuildSystem for Windows ARM64")
+    return s_new
+
+
 def main(argv):
     helper_path = argv[1]
     git_path    = argv[2]
@@ -294,6 +341,7 @@ def main(argv):
     kshimgen_path = argv[9]
     pkgconf_path = argv[10]
     perl_host_path = argv[11]
+    autotools_system_path = argv[12]
 
     with open(helper_path, 'r', encoding='utf-8') as f:
         helper_source = f.read()
@@ -721,6 +769,22 @@ def main(argv):
     with open(perl_host_path, 'w', encoding='utf-8') as f:
         f.write(perl_host_patched)
     print(f'Patched {perl_host_path}: perl builds for x64 host when cross-compiling to ARM64')
+
+    # Patch 13: bin/BuildSystem/AutoToolsBuildSystem.py — teach it about
+    # Windows ARM64. Upstream only handles x86_32 vs "everything else", so an
+    # ARM64 target gets --host=x86_64-w64-mingw32; configure then thinks the
+    # build is native and dies with "cannot run C compiled programs" when it
+    # tries to execute the ARM64 test binary.
+    with open(autotools_system_path, 'r', encoding='utf-8') as f:
+        autotools_system_source = f.read()
+    try:
+        autotools_system_patched = patch_autotools_arm64_host(autotools_system_source)
+    except ValueError as e:
+        print(f'ERROR: {e}', file=sys.stderr)
+        sys.exit(1)
+    with open(autotools_system_path, 'w', encoding='utf-8') as f:
+        f.write(autotools_system_patched)
+    print(f'Patched {autotools_system_path}: AutoToolsBuildSystem handles Windows ARM64')
 
 
 if __name__ == "__main__":

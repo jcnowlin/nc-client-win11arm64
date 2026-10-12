@@ -95,7 +95,7 @@ jobs:
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
             'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
             'blueprints/dev-utils/kshimgen/kshimgen.py', 'blueprints/dev-utils/pkgconf/pkgconf.py',
-            'blueprints/dev-utils/perl/perl.py'
+            'blueprints/dev-utils/perl/perl.py', 'bin/BuildSystem/AutoToolsBuildSystem.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -305,7 +305,7 @@ jobs:
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
             'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
             'blueprints/dev-utils/kshimgen/kshimgen.py', 'blueprints/dev-utils/pkgconf/pkgconf.py',
-            'blueprints/dev-utils/perl/perl.py'
+            'blueprints/dev-utils/perl/perl.py', 'bin/BuildSystem/AutoToolsBuildSystem.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -505,7 +505,7 @@ jobs:
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
             'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
             'blueprints/dev-utils/kshimgen/kshimgen.py', 'blueprints/dev-utils/pkgconf/pkgconf.py',
-            'blueprints/dev-utils/perl/perl.py'
+            'blueprints/dev-utils/perl/perl.py', 'bin/BuildSystem/AutoToolsBuildSystem.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -705,7 +705,7 @@ jobs:
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
             'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
             'blueprints/dev-utils/kshimgen/kshimgen.py', 'blueprints/dev-utils/pkgconf/pkgconf.py',
-            'blueprints/dev-utils/perl/perl.py'
+            'blueprints/dev-utils/perl/perl.py', 'bin/BuildSystem/AutoToolsBuildSystem.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -908,7 +908,7 @@ jobs:
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
             'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
             'blueprints/dev-utils/kshimgen/kshimgen.py', 'blueprints/dev-utils/pkgconf/pkgconf.py',
-            'blueprints/dev-utils/perl/perl.py'
+            'blueprints/dev-utils/perl/perl.py', 'bin/BuildSystem/AutoToolsBuildSystem.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -1111,7 +1111,7 @@ jobs:
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
             'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
             'blueprints/dev-utils/kshimgen/kshimgen.py', 'blueprints/dev-utils/pkgconf/pkgconf.py',
-            'blueprints/dev-utils/perl/perl.py'
+            'blueprints/dev-utils/perl/perl.py', 'bin/BuildSystem/AutoToolsBuildSystem.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -1311,7 +1311,7 @@ jobs:
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
             'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
             'blueprints/dev-utils/kshimgen/kshimgen.py', 'blueprints/dev-utils/pkgconf/pkgconf.py',
-            'blueprints/dev-utils/perl/perl.py'
+            'blueprints/dev-utils/perl/perl.py', 'bin/BuildSystem/AutoToolsBuildSystem.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
