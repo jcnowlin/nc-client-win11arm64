@@ -109,7 +109,7 @@ class PatchKshimgenHostBuildTests(unittest.TestCase):
         result = module.patch_kshimgen_host_build(KSHIMGEN_SNIPPET)
         self.assertIn("import platform\nimport re", result)
         self.assertIn("def _is_windows_arm64_cross():", result)
-        self.assertIn("def _x64_host_tool_env(path):", result)
+        self.assertIn("def _kshimgen_host_env():", result)
         self.assertIn("_is_windows_arm64_cross()", result)
         self.assertIn("building for x64 host", result)
         # Old native-only configure() must be gone.
@@ -168,7 +168,7 @@ class PatchKshimgenHostBuildTests(unittest.TestCase):
             path=path, lib=lib, cl_exists=True,
         )
         self.assertTrue(ns["_is_windows_arm64_cross"]())
-        env = ns["_x64_host_tool_env"](path)
+        env = ns["_kshimgen_host_env"]()
         x64bin = vs + r"\bin\HostX64\x64"
         self.assertEqual(env["CC"], x64bin + r"\cl.exe")
         self.assertEqual(env["CXX"], x64bin + r"\cl.exe")
@@ -176,13 +176,17 @@ class PatchKshimgenHostBuildTests(unittest.TestCase):
         self.assertIn(vs + r"\lib\x64", env["LIB"])
         self.assertIn(r"C:\WinKits\Lib\ucrt\x64", env["LIB"])
         self.assertNotIn("arm64", env["LIB"])
+        # vcvars target-arch stamp must follow the host, or CMake's MSVC
+        # logic keeps resolving ARM64 library directories.
+        self.assertEqual(env["VSCMD_ARG_TGT_ARCH"], "x64")
+        self.assertEqual(env["VSCMD_ARG_HOST_ARCH"], "x64")
 
     def test_host_env_empty_when_toolchain_not_found(self):
         ns = self._load_helpers(
             machine="AMD64", is_windows=True, arch="arm64",
             path=r"C:\Windows\System32", lib="", cl_exists=True,
         )
-        self.assertEqual(ns["_x64_host_tool_env"](r"C:\Windows\System32"), {})
+        self.assertEqual(ns["_kshimgen_host_env"](), {})
 
     def test_host_env_empty_when_cl_missing(self):
         vs = r"C:\VS\VC\Tools\MSVC\14.51.36231"
@@ -191,7 +195,7 @@ class PatchKshimgenHostBuildTests(unittest.TestCase):
             machine="AMD64", is_windows=True, arch="arm64",
             path=path, lib="", cl_exists=False,
         )
-        self.assertEqual(ns["_x64_host_tool_env"](path), {})
+        self.assertEqual(ns["_kshimgen_host_env"](), {})
 
     def test_not_cross_when_target_is_native(self):
         ns = self._load_helpers(

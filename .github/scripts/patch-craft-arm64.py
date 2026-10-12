@@ -54,14 +54,17 @@ def _is_windows_arm64_cross():
     )
 
 
-def _x64_host_tool_env(path):
-    """Derive the x64 host toolchain from an ARM64 cross PATH.
+def _kshimgen_host_env():
+    """Env overrides to build kshimgen for the x64 host.
 
-    Returns env overrides (PATH, LIB, CC, CXX), or {} if the host
-    toolchain cannot be determined. Everything is derived via path
-    substitution; no hardcoded VS paths or versions. INCLUDE is
-    arch-independent and left alone.
+    Returns {} when not cross-compiling, or when the host toolchain
+    cannot be determined (caller fails loudly). Everything is derived
+    via path substitution; no hardcoded VS paths or versions. INCLUDE
+    is arch-independent and left alone.
     """
+    if not _is_windows_arm64_cross():
+        return {}
+    path = os.environ.get("PATH", "")
     m = re.search(r"([^;]*[/\\]bin[/\\]hostx64[/\\])arm64", path, re.IGNORECASE)
     if not m:
         return {}
@@ -76,6 +79,10 @@ def _x64_host_tool_env(path):
         "LIB": x64lib,
         "CC": x64cl,
         "CXX": x64cl,
+        # vcvarsall stamps the target arch; CMake's MSVC logic keys the
+        # library directories off it, so it must say x64 for a host build.
+        "VSCMD_ARG_TGT_ARCH": "x64",
+        "VSCMD_ARG_HOST_ARCH": "x64",
     }
 '''
 
@@ -88,10 +95,10 @@ _KSHIMGEN_CONFIGURE = r'''
                 cmakePath /= "bin"
             path = f"{cmakePath}{os.pathsep}{os.environ['PATH']}"
             env = {"PATH": path}
+            hostEnv = _kshimgen_host_env()
             if _is_windows_arm64_cross():
                 # kshimgen runs on the build host (utils.createShim executes
                 # it); cross-compiling to ARM64 from x64, build it for x64.
-                hostEnv = _x64_host_tool_env(path)
                 if not hostEnv:
                     CraftCore.log.error("kshimgen: cannot determine x64 host toolchain, aborting cross build")
                     return False
@@ -99,6 +106,19 @@ _KSHIMGEN_CONFIGURE = r'''
                 CraftCore.log.info("kshimgen: building for x64 host (ARM64 target)")
             with utils.ScopedEnv(env):
                 return super().configure()
+
+        def make(self):
+            # The host toolchain must also be active for the link step;
+            # configure() alone is not enough (CMake hardcodes the compiler
+            # but the linker still resolves libraries via LIB at build time).
+            hostEnv = _kshimgen_host_env()
+            if _is_windows_arm64_cross():
+                if not hostEnv:
+                    CraftCore.log.error("kshimgen: cannot determine x64 host toolchain, aborting cross build")
+                    return False
+                with utils.ScopedEnv(hostEnv):
+                    return super().make()
+            return super().make()
 '''
 
 
