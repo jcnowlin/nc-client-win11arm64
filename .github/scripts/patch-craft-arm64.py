@@ -433,41 +433,41 @@ def patch_ninja_host_build(source: str) -> str:
 def patch_openssl_system_perl(source: str) -> str:
     """Patch 15: use system perl for OpenSSL Configure when cross-compiling to ARM64.
 
-    OpenSSL's Configure script must run on the build HOST (x64), but the
-    blueprint invokes Craft's bin/perl.exe which is built for the TARGET
-    (ARM64) and crashes with STATUS_ILLEGAL_INSTRUCTION on x64 Windows.
-    When cross-compiling, prefer a perl found on PATH (e.g. Strawberry
-    Perl from actions-setup-perl); fall back to Craft's perl otherwise.
+    OpenSSL's Configure script must run on the build HOST (x64). Upstream
+    Craft (commit 2661a4e05 "fix: perl use absolute path for modules") now
+    invokes bare "perl" from PATH instead of Craft's bin/perl.exe. When
+    cross-compiling, the workflow's actions-setup-perl step ensures Strawberry
+    Perl is on PATH, so the upstream form is already correct.
     """
+    # New upstream form: bare "perl" from PATH — already correct, nothing to do.
+    if 'Arguments(["perl", os.path.join(self.sourceDir(), "Configure")' in source:
+        return source
+    # Old form: absolute path to Craft's perl — rewrite to prefer system perl
     old = 'CraftCore.standardDirs.craftRoot() / "bin" / "perl.exe"'
     if old not in source:
-        raise ValueError("could not find perl path in openssl.py")
+        raise ValueError("could not find perl path in openssl.py (neither old nor new form)")
     new = (
         '(_system_perl() if _is_windows_arm64_cross() else '
         'CraftCore.standardDirs.craftRoot() / "bin" / "perl.exe")'
     )
     s_new = source.replace(old, new, 1)
-    # Inject the helper function before the class definition
-    helper = '''
+    helper = """
 def _system_perl():
-    """Return system perl path, or None if not found."""
     import shutil
     p = shutil.which("perl")
     if p:
-        CraftCore.log.info(f"openssl: using system perl {p}")
         from pathlib import Path
         return Path(p)
-    CraftCore.log.warning("openssl: no system perl on PATH, falling back to Craft perl")
     return None
 
-'''
-    # Find the first class definition and inject before it
+"""
     import re
     m = re.search(r'\nclass \w+', s_new)
     if not m:
         raise ValueError("could not find class definition in openssl.py")
     s_new = s_new[:m.start()] + helper + s_new[m.start():]
     return s_new
+
 
 def main(argv):
     helper_path = argv[1]
