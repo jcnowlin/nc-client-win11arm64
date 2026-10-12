@@ -407,3 +407,21 @@ class PatchNinjaHostBuildTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PatchOpensslSystemPerlTests(unittest.TestCase):
+    """Regression tests for Patch 15 of patch-craft-arm64.py."""
+
+    def test_new_upstream_form_is_left_alone(self):
+        mock = "\nclass P:\n    args = Arguments([\"perl\", os.path.join(self.sourceDir(), \"Configure\")])\n"
+        result = module.patch_openssl_system_perl(mock)
+        self.assertEqual(result, mock)
+
+    def test_old_form_prefers_system_perl(self):
+        mock = "\nclass P:\n    perl = CraftCore.standardDirs.craftRoot() / \"bin\" / \"perl.exe\"\n"
+        result = module.patch_openssl_system_perl(mock)
+        self.assertIn("_system_perl()", result)
+
+    def test_unknown_form_is_rejected(self):
+        with self.assertRaises(ValueError):
+            module.patch_openssl_system_perl("class P:\n    pass\n")
