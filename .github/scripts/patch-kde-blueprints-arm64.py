@@ -175,9 +175,12 @@ def bootstrap_zlib():
     if not os.path.exists(vswhere):
         raise RuntimeError("vswhere not found; cannot locate Visual Studio")
     vs_path = subprocess.run(
-        [vswhere, "-latest", "-products", "*", "-property", "installationPath"],
+        [vswhere, "-version", "[17.0,18.0)", "-products", "*",
+         "-property", "installationPath"],
         capture_output=True, text=True, check=True,
     ).stdout.strip().splitlines()[0].strip()
+    if not vs_path:
+        raise RuntimeError("Visual Studio 2022 (v17) not found via vswhere")
     vcvars = os.path.join(vs_path, "VC", "Auxiliary", "Build", "vcvarsamd64_arm64.bat")
     if not os.path.exists(vcvars):
         # Fall back to vcvars64.bat with amd64_arm64 arg
