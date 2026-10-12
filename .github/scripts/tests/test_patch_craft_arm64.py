@@ -301,7 +301,7 @@ class PatchPerlHostBuildTests(unittest.TestCase):
         # The override must come after the original make().
         self.assertLess(
             result.find("def make(self):\n        return super().make()"),
-            result.find('fixed_args.append("CRAFT_WIN64=")'),
+            result.find('fixed_list.append("CRAFT_WIN64=")'),
         )
 
     def test_upstream_shape_change_is_rejected(self):

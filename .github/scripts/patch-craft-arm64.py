@@ -228,13 +228,16 @@ _PERL_METHODS = r'''
                 return False
             CraftCore.log.info("host tool: building for x64 host (ARM64 target)")
             # CRAFT_WIN64="" selects the 64-bit build; the __init__ set it to
-            # "undef" for the ARM64 target.
+            # "undef" for the ARM64 target. Arguments is not iterable, so
+            # access the underlying list via the private attribute.
             orig_args = self.subinfo.options.make.args
-            fixed_args = [a for a in orig_args if not a.startswith("CRAFT_WIN64=")]
-            fixed_args.append("CRAFT_WIN64=")
+            from Utils.Arguments import Arguments
+            orig_list = orig_args._Arguments__args if hasattr(orig_args, "_Arguments__args") else []
+            fixed_list = [a for a in orig_list if not str(a).startswith("CRAFT_WIN64=")]
+            fixed_list.append("CRAFT_WIN64=")
             saved_env = dict(os.environ)
             os.environ.update(hostEnv)
-            self.subinfo.options.make.args = fixed_args
+            self.subinfo.options.make.args = Arguments(fixed_list)
             try:
                 return super().make()
             finally:
@@ -252,9 +255,11 @@ _PERL_METHODS = r'''
             saved_env = dict(os.environ)
             os.environ.update(hostEnv)
             orig_args = self.subinfo.options.install.args
-            fixed_args = [a for a in orig_args if not a.startswith("CRAFT_WIN64=")]
-            fixed_args.append("CRAFT_WIN64=")
-            self.subinfo.options.install.args = fixed_args
+            from Utils.Arguments import Arguments
+            orig_list = orig_args._Arguments__args if hasattr(orig_args, "_Arguments__args") else []
+            fixed_list = [a for a in orig_list if not str(a).startswith("CRAFT_WIN64=")]
+            fixed_list.append("CRAFT_WIN64=")
+            self.subinfo.options.install.args = Arguments(fixed_list)
             try:
                 return super().install()
             finally:
