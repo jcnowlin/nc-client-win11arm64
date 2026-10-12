@@ -52,8 +52,13 @@ class Arm64ConfigTests(unittest.TestCase):
         self.assertEqual(QT_COMPILER, "msvc2026_arm64")
         self.assertNotEqual(self.config[TARGET]["General/ABI"], TARGET)
 
-    def test_vs2026_host_uses_installed_14_44_arm64_toolset(self):
-        self.assertEqual(MSVC_TOOLSET, "14.44")
+    def test_cross_compile_pins_toolset_with_arm64_cross_tools(self):
+        # 14.51 is the VS 2026 default toolset on the x64 windows-latest
+        # runners and the one whose HostX64/arm64 cross compiler is
+        # installed there. 14.44 only carries x86/x64 tools on those
+        # runners, so vcvarsall left CMake on the x86 compiler and the
+        # kshimgen link died with LNK1104 against the ARM64 LIB dirs.
+        self.assertEqual(MSVC_TOOLSET, "14.51")
         self.assertEqual(self.config[TARGET]["General/MSVCToolset"], MSVC_TOOLSET)
 
     def test_uses_active_python_not_x64_path(self):

@@ -12,11 +12,17 @@ import sys
 
 # Keep the CraftMaster target key stable so existing workflow paths/caches and
 # command lines continue to resolve, but select the compiler ABI actually
-# installed on GitHub's migrated Windows 11 ARM64 runner.
+# installed on the runners.
 TARGET = "windows-msvc2022_arm64-cl"
 COMPILER_ABI = "windows-msvc2026_arm64-cl"
 QT_COMPILER = "msvc2026_arm64"
-MSVC_TOOLSET = "14.44"
+# Pin the MSVC toolset whose ARM64 cross-compiler components are actually
+# installed on the windows-latest x64 runners. 14.44 only carries the
+# x86/x64 tools there (its ARM64 cross tools are absent, so vcvarsall
+# silently leaves CMake on the x86 compiler and the link dies with
+# LNK1104); 14.51 is the VS 2026 default toolset and its HostX64/arm64
+# cross compiler is verified working on these runners.
+MSVC_TOOLSET = "14.51"
 
 
 def configure(source: str, revision: str, python_directory: str) -> str:

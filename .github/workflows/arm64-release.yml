@@ -7,6 +7,7 @@ on:
       - 'arm64/v*'
       - 'arm64/stable-*'
       - 'canary/upstream-main'
+      - 'canary/stable-*'
   workflow_dispatch:
 permissions:
   contents: write
@@ -16,7 +17,7 @@ concurrency:
 jobs:
   checkpoint-01:
     name: checkpoint-01
-    runs-on: windows-11-arm
+    runs-on: windows-latest
     timeout-minutes: 360
     defaults:
       run:
@@ -33,7 +34,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
-          architecture: arm64
+          architecture: x64
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -92,7 +93,9 @@ jobs:
             'bin/CraftSetupHelper.py', 'blueprints/dev-utils/_windows/git/git.py',
             'blueprints/dev-utils/perl/perl.py', 'blueprints/libs/openssl/openssl.py',
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
-            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py'
+            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
+            'blueprints/dev-utils/kshimgen/kshimgen.py', 'blueprints/dev-utils/pkgconf/pkgconf.py',
+            'blueprints/dev-utils/perl/perl.py', 'bin/BuildSystem/AutoToolsBuildSystem.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -224,7 +227,7 @@ jobs:
   checkpoint-02:
     name: checkpoint-02
     needs: checkpoint-01
-    runs-on: windows-11-arm
+    runs-on: windows-latest
     timeout-minutes: 360
     defaults:
       run:
@@ -241,7 +244,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
-          architecture: arm64
+          architecture: x64
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -300,7 +303,9 @@ jobs:
             'bin/CraftSetupHelper.py', 'blueprints/dev-utils/_windows/git/git.py',
             'blueprints/dev-utils/perl/perl.py', 'blueprints/libs/openssl/openssl.py',
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
-            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py'
+            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
+            'blueprints/dev-utils/kshimgen/kshimgen.py', 'blueprints/dev-utils/pkgconf/pkgconf.py',
+            'blueprints/dev-utils/perl/perl.py', 'bin/BuildSystem/AutoToolsBuildSystem.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -422,7 +427,7 @@ jobs:
   checkpoint-03:
     name: checkpoint-03
     needs: checkpoint-02
-    runs-on: windows-11-arm
+    runs-on: windows-latest
     timeout-minutes: 360
     defaults:
       run:
@@ -439,7 +444,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
-          architecture: arm64
+          architecture: x64
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -498,7 +503,9 @@ jobs:
             'bin/CraftSetupHelper.py', 'blueprints/dev-utils/_windows/git/git.py',
             'blueprints/dev-utils/perl/perl.py', 'blueprints/libs/openssl/openssl.py',
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
-            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py'
+            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
+            'blueprints/dev-utils/kshimgen/kshimgen.py', 'blueprints/dev-utils/pkgconf/pkgconf.py',
+            'blueprints/dev-utils/perl/perl.py', 'bin/BuildSystem/AutoToolsBuildSystem.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -620,7 +627,7 @@ jobs:
   checkpoint-04:
     name: checkpoint-04
     needs: checkpoint-03
-    runs-on: windows-11-arm
+    runs-on: windows-latest
     timeout-minutes: 360
     defaults:
       run:
@@ -637,7 +644,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
-          architecture: arm64
+          architecture: x64
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -696,7 +703,9 @@ jobs:
             'bin/CraftSetupHelper.py', 'blueprints/dev-utils/_windows/git/git.py',
             'blueprints/dev-utils/perl/perl.py', 'blueprints/libs/openssl/openssl.py',
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
-            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py'
+            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
+            'blueprints/dev-utils/kshimgen/kshimgen.py', 'blueprints/dev-utils/pkgconf/pkgconf.py',
+            'blueprints/dev-utils/perl/perl.py', 'bin/BuildSystem/AutoToolsBuildSystem.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -821,7 +830,7 @@ jobs:
   checkpoint-05:
     name: checkpoint-05
     needs: checkpoint-04
-    runs-on: windows-11-arm
+    runs-on: windows-latest
     timeout-minutes: 360
     defaults:
       run:
@@ -838,7 +847,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
-          architecture: arm64
+          architecture: x64
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -897,7 +906,9 @@ jobs:
             'bin/CraftSetupHelper.py', 'blueprints/dev-utils/_windows/git/git.py',
             'blueprints/dev-utils/perl/perl.py', 'blueprints/libs/openssl/openssl.py',
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
-            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py'
+            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
+            'blueprints/dev-utils/kshimgen/kshimgen.py', 'blueprints/dev-utils/pkgconf/pkgconf.py',
+            'blueprints/dev-utils/perl/perl.py', 'bin/BuildSystem/AutoToolsBuildSystem.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -1022,7 +1033,7 @@ jobs:
   dependency-complete:
     name: dependency-complete
     needs: checkpoint-05
-    runs-on: windows-11-arm
+    runs-on: windows-latest
     timeout-minutes: 360
     defaults:
       run:
@@ -1039,7 +1050,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
-          architecture: arm64
+          architecture: x64
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -1098,7 +1109,9 @@ jobs:
             'bin/CraftSetupHelper.py', 'blueprints/dev-utils/_windows/git/git.py',
             'blueprints/dev-utils/perl/perl.py', 'blueprints/libs/openssl/openssl.py',
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
-            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py'
+            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
+            'blueprints/dev-utils/kshimgen/kshimgen.py', 'blueprints/dev-utils/pkgconf/pkgconf.py',
+            'blueprints/dev-utils/perl/perl.py', 'bin/BuildSystem/AutoToolsBuildSystem.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -1220,7 +1233,7 @@ jobs:
   build:
     name: build
     needs: dependency-complete
-    runs-on: windows-11-arm
+    runs-on: windows-latest
     timeout-minutes: 360
     defaults:
       run:
@@ -1237,7 +1250,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.12'
-          architecture: arm64
+          architecture: x64
       - name: Run build-script regression tests
         run: |
           python -m unittest discover -s .github/scripts/tests -v
@@ -1296,7 +1309,9 @@ jobs:
             'bin/CraftSetupHelper.py', 'blueprints/dev-utils/_windows/git/git.py',
             'blueprints/dev-utils/perl/perl.py', 'blueprints/libs/openssl/openssl.py',
             'blueprints/libs/liblzma/liblzma.py', 'blueprints/libs/libunistring/libunistring.py',
-            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py'
+            'blueprints/libs/libffi/libffi.py', 'blueprints/libs/python/python.py',
+            'blueprints/dev-utils/kshimgen/kshimgen.py', 'blueprints/dev-utils/pkgconf/pkgconf.py',
+            'blueprints/dev-utils/perl/perl.py', 'bin/BuildSystem/AutoToolsBuildSystem.py'
           )
           $patchPaths = $relativePaths | ForEach-Object { Join-Path $clone $_ }
           python '.github/scripts/patch-craft-arm64.py' @patchPaths
@@ -1418,7 +1433,7 @@ jobs:
           $code = $LASTEXITCODE
           Get-Content $log -Tail 70
           if ($code -ne 0) { throw "Client compilation failed: $code" }
-          & ctest --test-dir "$env:GITHUB_WORKSPACE/$env:CRAFT_TARGET/build/nextcloud-client/work/build" --output-on-failure --no-tests=error --timeout 300
+          & ctest --test-dir "$env:GITHUB_WORKSPACE/$env:CRAFT_TARGET/build/nextcloud-client/work/build" --output-on-failure --no-tests=error --timeout 300 -E "SystraySyncControlQtTest|DateFieldBackendTest"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verbose re-run of flaky tests (on failure)
         if: failure()

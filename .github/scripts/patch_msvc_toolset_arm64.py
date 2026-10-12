@@ -9,10 +9,10 @@ import sys
 
 SIGNATURE = "    def getMsvcPlatformToolset(self):\n"
 MARKER = 'self.msvcToolset.startswith("14.44")'
-INSERT = '''        # VS 2026 hosted runners also carry the 14.44 ARM64 toolset. When an
-        # explicit 14.44 compiler is selected through vcvarsall, use the
-        # matching MSBuild PlatformToolset instead of forcing the ABI default
-        # back to v145.
+INSERT = '''        # An explicit older-toolset pin (e.g. 14.44, which the native
+        # ARM64 builds used) must keep its matching MSBuild PlatformToolset
+        # instead of the ABI default. With the default toolset the stock
+        # mapping below (msvc2026 -> v145) applies.
         if self.msvcToolset and self.msvcToolset.startswith("14.44"):
             return 143
 '''
