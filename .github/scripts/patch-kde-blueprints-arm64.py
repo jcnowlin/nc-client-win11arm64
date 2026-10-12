@@ -191,7 +191,7 @@ def bootstrap_zlib():
     subprocess.run(
         [
             "cmake", "-S", extracted, "-B", build_dir,
-            "-G", "Visual Studio 18 2026", "-A", "ARM64",
+            "-G", "Visual Studio 17 2022", "-A", "ARM64",
             f"-DCMAKE_INSTALL_PREFIX={craft_root}",
             "-DBUILD_SHARED_LIBS=ON",
         ],
