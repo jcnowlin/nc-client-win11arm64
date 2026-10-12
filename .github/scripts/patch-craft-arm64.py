@@ -329,6 +329,61 @@ def patch_autotools_arm64_host(source: str) -> str:
     return s_new
 
 
+# Patch 14: ninja is a host tool (CMake runs `ninja --version` during
+# configure, and the build invokes ninja to execute commands). When
+# cross-compiling Windows ARM64 from x64, build it for the x64 host;
+# otherwise the ARM64 ninja.exe cannot run on the x64 runner.
+_NINJA_METHODS = r'''
+    def configure(self):
+        hostEnv = _host_tool_env()
+        if _is_windows_arm64_cross():
+            if not hostEnv:
+                CraftCore.log.error("host tool: cannot determine x64 host toolchain, aborting cross build")
+                return False
+            CraftCore.log.info("host tool: building for x64 host (ARM64 target)")
+            with utils.ScopedEnv(hostEnv):
+                return super().configure()
+        return super().configure()
+
+    def make(self):
+        hostEnv = _host_tool_env()
+        if _is_windows_arm64_cross():
+            if not hostEnv:
+                CraftCore.log.error("host tool: cannot determine x64 host toolchain, aborting cross build")
+                return False
+            with utils.ScopedEnv(hostEnv):
+                return super().make()
+        return super().make()
+'''
+
+
+def patch_ninja_host_build(source: str) -> str:
+    """Patch 14: build ninja for the x64 host when cross-compiling to ARM64."""
+    s_new = re.sub(
+        r"^import info$",
+        "import info\nimport os\nimport platform\nimport re",
+        source, count=1, flags=re.MULTILINE,
+    )
+    if s_new == source:
+        raise ValueError("could not patch ninja imports")
+    s_new2 = re.sub(
+        r"\nclass Package\(CMakePackageBase\):",
+        lambda m: "\n" + _HOST_TOOL_HELPERS.strip("\n") + "\n\n\nclass Package(CMakePackageBase):",
+        s_new, count=1,
+    )
+    if s_new2 == s_new:
+        raise ValueError("could not inject ninja host helpers")
+    # Insert configure()/make() overrides before postInstall().
+    s_new3 = re.sub(
+        r"\n    def postInstall\(self\):",
+        lambda m: "\n" + _NINJA_METHODS.strip("\n") + "\n\n    def postInstall(self):",
+        s_new2, count=1,
+    )
+    if s_new3 == s_new2:
+        raise ValueError("could not inject ninja configure()/make()")
+    return s_new3
+
+
 def main(argv):
     helper_path = argv[1]
     git_path    = argv[2]
@@ -342,6 +397,7 @@ def main(argv):
     pkgconf_path = argv[10]
     perl_host_path = argv[11]
     autotools_system_path = argv[12]
+    ninja_path = argv[13]
 
     with open(helper_path, 'r', encoding='utf-8') as f:
         helper_source = f.read()
@@ -785,6 +841,20 @@ def main(argv):
     with open(autotools_system_path, 'w', encoding='utf-8') as f:
         f.write(autotools_system_patched)
     print(f'Patched {autotools_system_path}: AutoToolsBuildSystem handles Windows ARM64')
+
+    # Patch 14: blueprints/dev-utils/ninja/ninja.py — ninja is a host tool
+    # (CMake runs `ninja --version` during configure). When cross-compiling
+    # Windows ARM64 from x64, build it for the x64 host.
+    with open(ninja_path, 'r', encoding='utf-8') as f:
+        ninja_source = f.read()
+    try:
+        ninja_patched = patch_ninja_host_build(ninja_source)
+    except ValueError as e:
+        print(f'ERROR: {e}', file=sys.stderr)
+        sys.exit(1)
+    with open(ninja_path, 'w', encoding='utf-8') as f:
+        f.write(ninja_patched)
+    print(f'Patched {ninja_path}: ninja builds for x64 host when cross-compiling to ARM64')
 
 
 if __name__ == "__main__":

@@ -364,5 +364,46 @@ class PatchAutotoolsArm64HostTests(unittest.TestCase):
             module.patch_autotools_arm64_host("class AutoToolsBuildSystem:\n    pass\n")
 
 
+# Minimal excerpt of upstream blueprints/dev-utils/ninja/ninja.py carrying
+# the Package class head that Patch 14 targets.
+NINJA_SNIPPET = '''\
+import info
+import utils
+from CraftCore import CraftCore
+from Package.CMakePackageBase import CMakePackageBase
+
+
+class Package(CMakePackageBase):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def postInstall(self):
+        return True
+'''
+
+
+class PatchNinjaHostBuildTests(unittest.TestCase):
+    """Regression tests for Patch 14 of patch-craft-arm64.py.
+
+    ninja is a host tool: CMake runs `ninja --version` during configure,
+    and the build invokes ninja to execute commands. When cross-compiling
+    Windows ARM64 from x64, an ARM64 ninja.exe cannot run on the x64
+    runner. It must be built for the x64 host.
+    """
+
+    def test_patch_applies_and_rewires_configure_make(self):
+        result = module.patch_ninja_host_build(NINJA_SNIPPET)
+        self.assertIn("import os\nimport platform\nimport re", result)
+        self.assertIn("def _is_windows_arm64_cross():", result)
+        self.assertIn("def _host_tool_env():", result)
+        self.assertIn("def configure(self):", result)
+        self.assertIn("def make(self):", result)
+        self.assertIn("def postInstall(self):", result)
+
+    def test_upstream_shape_change_is_rejected(self):
+        with self.assertRaises(ValueError):
+            module.patch_ninja_host_build("import info\nclass Package:\n    pass\n")
+
+
 if __name__ == "__main__":
     unittest.main()
