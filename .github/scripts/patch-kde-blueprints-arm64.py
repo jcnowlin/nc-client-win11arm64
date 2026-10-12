@@ -168,6 +168,36 @@ def bootstrap_zlib():
     if shutil.which("cmake") is None:
         raise RuntimeError("zlib bootstrap requires cmake on PATH")
 
+    # Set up MSVC environment for ARM64 cross-compilation.
+    # The workflow does not run msvc-dev-cmd before this script, so we
+    # locate VS via vswhere and run vcvars ourselves.
+    vswhere = r"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
+    if not os.path.exists(vswhere):
+        raise RuntimeError("vswhere not found; cannot locate Visual Studio")
+    vs_path = subprocess.run(
+        [vswhere, "-latest", "-products", "*", "-property", "installationPath"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip().splitlines()[0].strip()
+    vcvars = os.path.join(vs_path, "VC", "Auxiliary", "Build", "vcvarsamd64_arm64.bat")
+    if not os.path.exists(vcvars):
+        # Fall back to vcvars64.bat with amd64_arm64 arg
+        vcvars = os.path.join(vs_path, "VC", "Auxiliary", "Build", "vcvars64.bat")
+        vcvars_arg = " amd64_arm64"
+    else:
+        vcvars_arg = ""
+    if not os.path.exists(vcvars):
+        raise RuntimeError(f"vcvars not found at {vcvars}")
+    # Run vcvars and capture the environment it sets up
+    env_cmd = f'call "{vcvars}"{vcvars_arg} >nul && set'
+    env_output = subprocess.run(
+        env_cmd, shell=True, capture_output=True, text=True, check=True,
+    ).stdout
+    for line in env_output.splitlines():
+        if "=" in line:
+            k, v = line.split("=", 1)
+            os.environ[k] = v
+    print(f"MSVC environment set up from {vs_path}")
+
     zlib_ver = "1.3.1"
     runner_temp = os.environ.get("RUNNER_TEMP", "/tmp")
     tgz_path = os.path.join(runner_temp, f"zlib-{zlib_ver}.tar.gz")
