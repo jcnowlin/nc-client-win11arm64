@@ -429,6 +429,46 @@ def patch_ninja_host_build(source: str) -> str:
     return s_new3
 
 
+
+def patch_openssl_system_perl(source: str) -> str:
+    """Patch 15: use system perl for OpenSSL Configure when cross-compiling to ARM64.
+
+    OpenSSL's Configure script must run on the build HOST (x64), but the
+    blueprint invokes Craft's bin/perl.exe which is built for the TARGET
+    (ARM64) and crashes with STATUS_ILLEGAL_INSTRUCTION on x64 Windows.
+    When cross-compiling, prefer a perl found on PATH (e.g. Strawberry
+    Perl from actions-setup-perl); fall back to Craft's perl otherwise.
+    """
+    old = 'CraftCore.standardDirs.craftRoot() / "bin" / "perl.exe"'
+    if old not in source:
+        raise ValueError("could not find perl path in openssl.py")
+    new = (
+        '(_system_perl() if _is_windows_arm64_cross() else '
+        'CraftCore.standardDirs.craftRoot() / "bin" / "perl.exe")'
+    )
+    s_new = source.replace(old, new, 1)
+    # Inject the helper function before the class definition
+    helper = '''
+def _system_perl():
+    """Return system perl path, or None if not found."""
+    import shutil
+    p = shutil.which("perl")
+    if p:
+        CraftCore.log.info(f"openssl: using system perl {p}")
+        from pathlib import Path
+        return Path(p)
+    CraftCore.log.warning("openssl: no system perl on PATH, falling back to Craft perl")
+    return None
+
+'''
+    # Find the first class definition and inject before it
+    import re
+    m = re.search(r'\nclass \w+', s_new)
+    if not m:
+        raise ValueError("could not find class definition in openssl.py")
+    s_new = s_new[:m.start()] + helper + s_new[m.start():]
+    return s_new
+
 def main(argv):
     helper_path = argv[1]
     git_path    = argv[2]
@@ -901,6 +941,24 @@ def main(argv):
         f.write(ninja_patched)
     print(f'Patched {ninja_path}: ninja builds for x64 host when cross-compiling to ARM64')
 
+    # Patch 15: blueprints/libs/openssl/openssl.py — use system perl for
+    # Configure when cross-compiling. OpenSSL's Configure must run on the
+    # build HOST (x64), but the blueprint invokes Craft's bin/perl.exe which
+    # is built for the TARGET (ARM64) and crashes with
+    # STATUS_ILLEGAL_INSTRUCTION on x64 Windows. Prefer a perl from PATH
+    # (e.g. Strawberry Perl via actions-setup-perl).
+    with open(openssl_path, 'r', encoding='utf-8') as f:
+        openssl_source = f.read()
+    try:
+        openssl_patched = patch_openssl_system_perl(openssl_source)
+    except ValueError as e:
+        print(f'ERROR: {e}', file=sys.stderr)
+        sys.exit(1)
+    with open(openssl_path, 'w', encoding='utf-8') as f:
+        f.write(openssl_patched)
+    print(f'Patched {openssl_path}: openssl uses system perl when cross-compiling to ARM64')
+
 
 if __name__ == "__main__":
     main(sys.argv)
+
