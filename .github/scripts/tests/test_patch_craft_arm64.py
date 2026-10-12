@@ -407,3 +407,42 @@ class PatchNinjaHostBuildTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PatchOpensslSystemPerlTests(unittest.TestCase):
+    """Regression tests for Patch 15 of patch-craft-arm64.py.
+
+    Patch 15 makes OpenSSL's Configure use the system perl (e.g. Strawberry
+    Perl from actions-setup-perl) when cross-compiling to ARM64, instead of
+    Craft's bin/perl.exe which is built for the ARM64 target and crashes
+    with STATUS_ILLEGAL_INSTRUCTION when executed on the x64 host.
+    """
+
+    def test_patch_prefers_system_perl_when_cross_compiling(self):
+        mock = '''
+class Package:
+    def configure(self):
+        perl = CraftCore.standardDirs.craftRoot() / "bin" / "perl.exe"
+        utils.system([perl, "Configure"])
+'''
+        result = module.patch_openssl_system_perl(mock)
+        # The perl path is replaced with a conditional
+        self.assertIn("_system_perl()", result)
+        self.assertIn("_is_windows_arm64_cross()", result)
+        # The helper function is injected
+        self.assertIn("def _system_perl():", result)
+        self.assertIn('shutil.which("perl")', result)
+
+    def test_patch_falls_back_to_craft_perl(self):
+        mock = '''
+class Package:
+    def configure(self):
+        perl = CraftCore.standardDirs.craftRoot() / "bin" / "perl.exe"
+'''
+        result = module.patch_openssl_system_perl(mock)
+        # Fallback to Craft perl is preserved
+        self.assertIn('CraftCore.standardDirs.craftRoot() / "bin" / "perl.exe"', result)
+
+    def test_upstream_shape_change_is_rejected(self):
+        with self.assertRaises(ValueError):
+            module.patch_openssl_system_perl("class Package:\n    pass\n")
