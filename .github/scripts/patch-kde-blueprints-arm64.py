@@ -4,6 +4,7 @@
 
 """Apply Windows ARM64 fixes to stable Nextcloud/KDE Craft blueprints."""
 
+import re
 import sys
 
 
@@ -80,179 +81,132 @@ def patch_pixman(path):
     print(f"Patched {path}: disabled unsupported SIMD paths for Windows ARM64")
 
 
+LIBP11_MARKER = "# Windows ARM64: libp11 make.rules.mak machine"
+
+# Earlier tooling passed MACHINE on the nmake command line. libp11's top-level
+# Makefile.mak re-invokes nmake in src/ without forwarding it, so the child only
+# sees it as an inherited macro, which make.rules.mak's unconditional
+# "MACHINE = /MACHINE:X86" overrides (run 37476929089). Restored dependency
+# workspaces may still carry that blueprint edit, so remove it on upgrade.
+LIBP11_LEGACY_PATCH = (
+    '        elif CraftCore.compiler.architecture == CraftCompiler.Architecture.arm64:\n'
+    '             self.subinfo.options.make.args += " MACHINE=/MACHINE:ARM64"\n'
+)
+
+
 def patch_libp11(path):
     s, line_ending = _read_normalized(path)
 
-    if "BUILD_FOR=ARM64" in s:
-        print(f"SKIP {path}: Windows ARM64 libp11 patch already present")
+    if LIBP11_MARKER in s:
+        print(f"SKIP {path}: Windows ARM64 linker machine patch already present")
         return
 
-    # libp11's make.rules.mak links with /MACHINE:X86 unless BUILD_FOR=WIN64.
-    # A command-line MACHINE=... does NOT override the makefile's !IF/!ELSE
-    # assignment, so we must patch make.rules.mak itself after unpacking.
-    # Step 1: pass BUILD_FOR=ARM64 on ARM64 (instead of the ineffective
-    # command-line MACHINE override).
+    s = s.replace(LIBP11_LEGACY_PATCH, "", 1)
+
+    # make.rules.mak only knows x64 (BUILD_FOR=WIN64) and otherwise hardcodes
+    # /MACHINE:X86. Rewrite that default in the unpacked sources before nmake
+    # runs, so every recursive nmake and every DLL link uses /MACHINE:ARM64.
     needle = (
         '        if CraftCore.compiler.architecture == CraftCompiler.Architecture.x86_64:\n'
         '             self.subinfo.options.make.args += f" BUILD_FOR=WIN64"\n'
+        '\n'
+        '    def install(self):\n'
     )
-    replacement = needle + (
-        '        elif CraftCore.compiler.architecture == CraftCompiler.Architecture.arm64:\n'
-        '             self.subinfo.options.make.args += " BUILD_FOR=ARM64"\n'
+    replacement = (
+        '        if CraftCore.compiler.architecture == CraftCompiler.Architecture.x86_64:\n'
+        '             self.subinfo.options.make.args += f" BUILD_FOR=WIN64"\n'
+        '\n'
+        '    def make(self):\n'
+        f'        {LIBP11_MARKER}\n'
+        '        if CraftCore.compiler.architecture == CraftCompiler.Architecture.arm64:\n'
+        '            rules = os.path.join(self.sourceDir(), "make.rules.mak")\n'
+        '            with open(rules, "rt") as f:\n'
+        '                content = f.read()\n'
+        '            if "MACHINE = /MACHINE:ARM64" not in content:\n'
+        '                if content.count("MACHINE = /MACHINE:X86") != 1:\n'
+        '                    CraftCore.log.error(f"Unexpected libp11 machine settings in {rules}")\n'
+        '                    return False\n'
+        '                with open(rules, "wt") as f:\n'
+        '                    f.write(content.replace("MACHINE = /MACHINE:X86", "MACHINE = /MACHINE:ARM64"))\n'
+        '        return super().make()\n'
+        '\n'
+        '    def install(self):\n'
     )
-    if needle not in s:
+    if s.count(needle) != 1:
         raise RuntimeError("libp11 nmake architecture block changed upstream")
     s = s.replace(needle, replacement, 1)
-
-    # Step 2: add an unpack() override that teaches make.rules.mak about ARM64.
-    # Insert after the __init__ method of PackageMake (before "    def install").
-    unpack_code = (
-        '        self.subinfo.options.make.args += " BUILD_FOR=ARM64"\n'
-        '\n'
-        '    def unpack(self):\n'
-        '        if not super().unpack():\n'
-        '            return False\n'
-        '        # libp11\'s make.rules.mak predates ARM64: it sets /MACHINE:X86\n'
-        '        # for anything that is not BUILD_FOR=WIN64. Add an ARM64 branch.\n'
-        '        make_rules = self.sourceDir() / "make.rules.mak"\n'
-        '        if make_rules.is_file():\n'
-        '            text = make_rules.read_text(encoding="utf-8")\n'
-        '            old = \'!IF "$(BUILD_FOR)" == "WIN64"\\nMACHINE = /MACHINE:X64\'\n'
-        '            new = old + \'\\n!ELSEIF "$(BUILD_FOR)" == "ARM64"\\nMACHINE = /MACHINE:ARM64\'\n'
-        '            if old in text and "/MACHINE:ARM64" not in text:\n'
-        '                make_rules.write_text(text.replace(old, new, 1), encoding="utf-8")\n'
-        '        return True\n'
-    )
-    install_needle = '        self.subinfo.options.make.args += " BUILD_FOR=ARM64"\n\n    def install(self):'
-    if install_needle not in s:
-        raise RuntimeError("libp11 install() anchor not found for unpack injection")
-    s = s.replace(
-        install_needle,
-        unpack_code + '\n    def install(self):',
-        1,
-    )
 
     _write_preserving_line_endings(path, s, line_ending)
     print(f"Patched {path}: link libp11 for Windows ARM64")
 
 
+def patch_qttools(path):
+    s, line_ending = _read_normalized(path)
 
-
-def bootstrap_zlib():
-    """Pre-build zlib.lib so Craft's Python build can link it.
-
-    Craft resolves libs/python before libs/zlib, but CPython's Windows build
-    links <craft-root>/lib/zlib.lib (see KDE/craft blueprints/libs/python).
-    Building zlib 1.3.1 here with CMake breaks the cycle; Craft rebuilds and
-    reinstalls it properly afterwards via libs/zlib.
-    """
-    import os
-    import shutil
-    import subprocess
-    import tarfile
-    import urllib.request
-
-    github_workspace = os.environ.get("GITHUB_WORKSPACE")
-    craft_target = os.environ.get("CRAFT_TARGET")
-    if not github_workspace or not craft_target:
-        print("SKIP zlib bootstrap: GITHUB_WORKSPACE or CRAFT_TARGET not set")
+    if "-DFEATURE_clang=OFF\", \"-DFEATURE_clangcpp=OFF\"]  # Windows ARM64" in s:
+        print(f"SKIP {path}: Windows ARM64 LLVM patch already present")
         return
 
-    craft_root = os.path.join(github_workspace, craft_target)
-    zlib_lib = os.path.join(craft_root, "lib", "zlib.lib")
-    if os.path.exists(zlib_lib):
-        print(f"SKIP zlib bootstrap: {zlib_lib} already exists")
-        return
-
-    # Need CMake from the runner (Craft's own cmake is built later).
-    if shutil.which("cmake") is None:
-        raise RuntimeError("zlib bootstrap requires cmake on PATH")
-
-    # Set up MSVC environment for ARM64 cross-compilation.
-    # The workflow does not run msvc-dev-cmd before this script, so we
-    # locate VS via vswhere and run vcvars ourselves.
-    # We use the Ninja generator (not Visual Studio) to avoid VS version
-    # detection issues — the runner has VS 2026 but an older CMake that
-    # doesn't recognize the VS18 generator.
-    vswhere = r"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
-    if not os.path.exists(vswhere):
-        raise RuntimeError("vswhere not found; cannot locate Visual Studio")
-    vs_path = subprocess.run(
-        [vswhere, "-latest", "-products", "*", "-property", "installationPath"],
-        capture_output=True, text=True, check=True,
-    ).stdout.strip().splitlines()
-    if not vs_path or not vs_path[0].strip():
-        raise RuntimeError("Visual Studio not found via vswhere")
-    vs_path = vs_path[0].strip()
-    vcvars = os.path.join(vs_path, "VC", "Auxiliary", "Build", "vcvarsamd64_arm64.bat")
-    if not os.path.exists(vcvars):
-        # Fall back to vcvars64.bat with amd64_arm64 arg
-        vcvars = os.path.join(vs_path, "VC", "Auxiliary", "Build", "vcvars64.bat")
-        vcvars_arg = " amd64_arm64"
-    else:
-        vcvars_arg = ""
-    if not os.path.exists(vcvars):
-        raise RuntimeError(f"vcvars not found at {vcvars}")
-    # Run vcvars and capture the environment it sets up
-    env_cmd = f'call "{vcvars}"{vcvars_arg} >nul && set'
-    env_output = subprocess.run(
-        env_cmd, shell=True, capture_output=True, text=True, check=True,
-    ).stdout
-    for line in env_output.splitlines():
-        if "=" in line:
-            k, v = line.split("=", 1)
-            os.environ[k] = v
-    print(f"MSVC environment set up from {vs_path}")
-
-    # Ninja is preinstalled on GitHub runners; verify it's available
-    if shutil.which("ninja") is None:
-        raise RuntimeError("zlib bootstrap requires ninja on PATH")
-
-    zlib_ver = "1.3.1"
-    runner_temp = os.environ.get("RUNNER_TEMP", "/tmp")
-    tgz_path = os.path.join(runner_temp, f"zlib-{zlib_ver}.tar.gz")
-    src_dir = os.path.join(runner_temp, "zlib-bootstrap-src")
-    build_dir = os.path.join(runner_temp, "zlib-bootstrap-build")
-
-    print(f"Bootstrapping zlib {zlib_ver} (breaks python->zlib build cycle)...")
-    url = f"https://github.com/madler/zlib/releases/download/v{zlib_ver}/zlib-{zlib_ver}.tar.gz"
-    urllib.request.urlretrieve(url, tgz_path)
-
-    shutil.rmtree(src_dir, ignore_errors=True)
-    os.makedirs(src_dir, exist_ok=True)
-    with tarfile.open(tgz_path, "r:gz") as tf:
-        tf.extractall(src_dir)
-    extracted = os.path.join(src_dir, f"zlib-{zlib_ver}")
-    if not os.path.isdir(extracted):
-        raise RuntimeError(f"zlib source not found at {extracted}")
-
-    shutil.rmtree(build_dir, ignore_errors=True)
-    os.makedirs(build_dir, exist_ok=True)
-    # Use Ninja generator: doesn't require VS version detection (runner has
-    # VS 2026 but older CMake), and vcvars already set up the ARM64 env.
-    subprocess.run(
-        [
-            "cmake", "-S", extracted, "-B", build_dir,
-            "-G", "Ninja",
-            f"-DCMAKE_INSTALL_PREFIX={craft_root}",
-            "-DBUILD_SHARED_LIBS=ON",
-            "-DCMAKE_BUILD_TYPE=Release",
-        ],
-        check=True,
+    # qttools only needs libs/llvm for qdoc and the clang-based lupdate parser,
+    # which the client does not use. x64 gets LLVM from the binary cache, but
+    # ARM64 has no cache and building LLVM from source consumes most of a
+    # six-hour runner window (run 37434281380). Lupdate, lrelease and the
+    # other Linguist tools do not need clang.
+    dep_needle = '        self.runtimeDependencies["libs/llvm"] = None\n'
+    dep_replacement = (
+        '        from CraftCompiler import CraftCompiler\n'
+        '        if not (CraftCore.compiler.isWindows and CraftCore.compiler.architecture == CraftCompiler.Architecture.arm64):\n'
+        '            self.runtimeDependencies["libs/llvm"] = None\n'
     )
-    subprocess.run(["cmake", "--build", build_dir], check=True)
-    subprocess.run(["cmake", "--install", build_dir], check=True)
+    if s.count(dep_needle) != 1:
+        raise RuntimeError("qttools libs/llvm dependency changed upstream")
+    s = s.replace(dep_needle, dep_replacement, 1)
 
-    if not os.path.exists(zlib_lib):
-        raise RuntimeError(f"zlib bootstrap failed: {zlib_lib} not created")
-    print("zlib bootstrap complete.")
+    init_needle = (
+        'class Package(CraftPackageObject.get("libs/qt6").pattern):\n'
+        '    def __init__(self, **kwargs):\n'
+        '        super().__init__(**kwargs)\n'
+    )
+    init_replacement = init_needle + (
+        '        from CraftCompiler import CraftCompiler\n'
+        '        if CraftCore.compiler.isWindows and CraftCore.compiler.architecture == CraftCompiler.Architecture.arm64:\n'
+        '            self.subinfo.options.configure.args += ["-DFEATURE_clang=OFF", "-DFEATURE_clangcpp=OFF"]  # Windows ARM64\n'
+    )
+    if init_needle not in s:
+        raise RuntimeError("qttools Package block changed upstream")
+    s = s.replace(init_needle, init_replacement, 1)
+
+    _write_preserving_line_endings(path, s, line_ending)
+    print(f"Patched {path}: build qttools without LLVM for Windows ARM64")
+
+
+def patch_nextcloud_client_imports(path):
+    s, line_ending = _read_normalized(path)
+
+    if re.search(r"(?m)^import os$", s):
+        print(f"SKIP {path}: os import already present")
+        return
+
+    # createPackage() calls os.path.join(), but the blueprint relies on
+    # "from Package.CMakePackageBase import *" for os, which the pinned Craft
+    # revision no longer re-exports (run 37515196377: NameError: name 'os' is
+    # not defined). The packaging fixes from patch-nsis-and-blueprint.py also
+    # use os. This runs on restored workspaces too, unlike that one-time patch.
+    needle = "import info\n"
+    if not s.startswith(needle) and f"\n{needle}" not in s:
+        raise RuntimeError("nextcloud-client import block changed upstream")
+    s = re.sub(r"(?m)^import info$", "import info\nimport os", s, count=1)
+
+    _write_preserving_line_endings(path, s, line_ending)
+    print(f"Patched {path}: import os for createPackage()")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print("Usage: patch-kde-blueprints-arm64.py <libjpeg-turbo.py> <pixman.py> <libp11.py>")
+    if len(sys.argv) != 6:
+        print("Usage: patch-kde-blueprints-arm64.py <libjpeg-turbo.py> <pixman.py> <libp11.py> <qttools.py> <nextcloud-client.py>")
         sys.exit(2)
-    bootstrap_zlib()
     patch_libjpeg(sys.argv[1])
     patch_pixman(sys.argv[2])
     patch_libp11(sys.argv[3])
+    patch_qttools(sys.argv[4])
+    patch_nextcloud_client_imports(sys.argv[5])
