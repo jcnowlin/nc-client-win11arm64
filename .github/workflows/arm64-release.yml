@@ -25,6 +25,7 @@ jobs:
       CRAFT_TARGET: windows-msvc2022_arm64-cl
       CRAFT_MASTER_LOCATION: ${{ github.workspace }}\CraftMaster
       CRAFT_MASTER_CONFIG: ${{ github.workspace }}\craftmaster-arm64.ini
+      PIP_USE_DEPRECATED: legacy-certs
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
